@@ -43,56 +43,103 @@ public class StringOutputStream {
         wrapped.setLength(length);
     }
 
-    public StringBuilder append(String str) {
-        return wrapped.append(str);
+    public StringOutputStream append(String str) {
+        wrapped.append(str);
+        return this;
     }
 
-    public StringBuilder append(StringBuffer sb) {
-        return wrapped.append(sb);
+    public StringOutputStream append(StringBuffer sb) {
+        wrapped.append(sb);
+        return this;
     }
 
-    public StringBuilder append(CharSequence s) {
-        return wrapped.append(s);
+    public StringOutputStream append(CharSequence s) {
+        wrapped.append(s);
+        return this;
     }
 
-    public StringBuilder append(CharSequence s, int start, int end) {
-        return wrapped.append(s, start, end);
+    public StringOutputStream append(CharSequence s, int start, int end) {
+        wrapped.append(s, start, end);
+        return this;
     }
 
-    public StringBuilder append(char[] str) {
-        return wrapped.append(str);
+    public StringOutputStream append(char[] str) {
+        wrapped.append(str);
+        return this;
     }
 
-    public StringBuilder append(char[] str, int offset, int len) {
-        return wrapped.append(str, offset, len);
+    public StringOutputStream append(char[] str, int offset, int len) {
+        wrapped.append(str, offset, len);
+        return this;
     }
 
-    public StringBuilder append(boolean b) {
-        return wrapped.append(b);
+    public StringOutputStream append(boolean b) {
+        wrapped.append(b);
+        return this;
     }
 
-    public StringBuilder append(char c) {
-        return wrapped.append(c);
+    public StringOutputStream append(char c) {
+        wrapped.append(c);
+        return this;
     }
 
-    public StringBuilder append(int i) {
-        return wrapped.append(i);
+    public StringOutputStream append(int i) {
+        wrapped.append(i);
+        return this;
     }
 
-    public StringBuilder append(long lng) {
-        return wrapped.append(lng);
+    public StringOutputStream append(long lng) {
+        wrapped.append(lng);
+        return this;
     }
 
-    public StringBuilder append(float f) {
-        return wrapped.append(f);
+    public StringOutputStream append(float f) {
+        wrapped.append(f);
+        return this;
     }
 
-    public StringBuilder append(double d) {
-        return wrapped.append(d);
+    public StringOutputStream append(double d) {
+        wrapped.append(d);
+        return this;
     }
 
-    public StringBuilder append(Enum<?> d) {
-        return wrapped.append(EnumValue.doNaturalFormatting(d.toString())).append(" (").append(d.ordinal()).append(")");
+    public StringOutputStream append(Enum<?> d) {
+        wrapped.append(EnumValue.doNaturalFormatting(d.toString())).append(" (").append(d.ordinal()).append(")");
+        return this;
+    }
+
+    /**
+     * Write object to stream (without any type information)
+     *
+     * @param object Object to write to stream
+     */
+    public StringOutputStream appendObject(Object object) {
+        return appendObject(object, object.getClass());
+    }
+
+    /**
+     * Write object to stream (without any type information)
+     *
+     * @param object Object to write to stream
+     * @param type Type of object (if serialization is consistent, could be base class)
+     */
+    @SuppressWarnings("rawtypes")
+    public StringOutputStream appendObject(Object object, Class<?> type) {
+        if (StringSerializable.class.isAssignableFrom(type)) {
+            ((StringSerializable)object).serialize(this);
+        } else if (type.isPrimitive()) {
+            append(object.toString());
+        } else {
+            assert(object != null && (object.getClass() == type));
+            if (type.isEnum()) {
+                append((Enum)object);
+            } else if (type == String.class) {
+                append(object.toString());
+            } else {
+                throw new RuntimeException("Unsupported type");
+            }
+        }
+        return this;
     }
 
     public String toString() {

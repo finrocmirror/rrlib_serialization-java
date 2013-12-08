@@ -278,4 +278,71 @@ public class StringInputStream {
         }
         return n;
     }
+
+    /**
+     * Deserialize boolean from string stream
+     *
+     * @return Boolean value
+     */
+    public boolean readBoolean() {
+        String s = readWhile("", StringInputStream.LETTER | StringInputStream.DIGIT | StringInputStream.WHITESPACE, true);
+        return s.toLowerCase().equals("true") || s.equals("1");
+    }
+
+    /**
+     * Deserializes object of specified type
+     *
+     * @param type Type object must have
+     * @return Deserialized object (new object for immutable types, provided object in case of a mutable type)
+     */
+    public Object readObject(Class<?> type) throws Exception {
+        return readObject(null, type);
+    }
+
+    /**
+     * Deserializes object of specified type
+     *
+     * @param deserializeTo Object to call deserialize() on (optional; will contain result of deserialization, in case type is a mutable type)
+     * @param type Type object must have
+     * @return Deserialized object (new object for immutable types, provided object in case of a mutable type)
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public Object readObject(Object deserializeTo, Class<?> type) throws Exception {
+        if (StringSerializable.class.isAssignableFrom(type)) {
+            if (deserializeTo == null) {
+                deserializeTo = type.newInstance();
+            }
+            ((StringSerializable)deserializeTo).deserialize(this);
+            return deserializeTo;
+        } else if (type.isPrimitive()) {
+            if (type == boolean.class) {
+                return readBoolean();
+            } else if (type == float.class || type == double.class) {
+                String s = readWhile("-.", StringInputStream.DIGIT | StringInputStream.WHITESPACE | StringInputStream.LETTER, true);
+                return type == float.class ? Float.parseFloat(s) : Double.parseDouble(s);
+            } else {
+                String s = readWhile("-", StringInputStream.DIGIT | StringInputStream.WHITESPACE, true);
+                if (type == byte.class) {
+                    return Byte.parseByte(s);
+                } else if (type == short.class) {
+                    return Short.parseShort(s);
+                } else if (type == int.class) {
+                    return Integer.parseInt(s);
+                } else if (type == long.class) {
+                    return Long.parseLong(s);
+                } else {
+                    throw new Exception("Unsupported primitive type");
+                }
+            }
+        } else {
+            assert(deserializeTo != null && (deserializeTo.getClass() == type));
+            if (type.isEnum()) {
+                return readEnum((Class<? extends Enum>)type);
+            } else if (type == String.class) {
+                return readAll();
+            } else {
+                throw new RuntimeException("Unsupported type");
+            }
+        }
+    }
 }

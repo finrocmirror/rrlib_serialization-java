@@ -22,8 +22,12 @@
 package org.rrlib.serialization;
 
 import java.io.ByteArrayOutputStream;
+import java.io.StringReader;
 
 import org.rrlib.serialization.rtti.DataTypeBase;
+import org.rrlib.xml.XMLDocument;
+import org.rrlib.xml.XMLNode;
+import org.xml.sax.InputSource;
 
 /**
  * @author Max Reichardt
@@ -814,4 +818,44 @@ public class BinaryInputStream {
             throw new Exception("Unsupported type");
         }
     }
+
+    /**
+     * Deserializes object of specified type
+     *
+     * @param type Type object must have
+     * @param encoding Data encoding
+     * @return Deserialized object (new object for immutable types, provided object in case of a mutable type)
+     */
+    public Object readObject(Class<?> type, Serialization.DataEncoding encoding) throws Exception {
+        return readObject(null, type, encoding);
+    }
+
+    /**
+     * Deserializes object of specified type
+     *
+     * @param deserializeTo Object to call deserialize() on (optional; will contain result of deserialization, in case type is a mutable type)
+     * @param type Type object must have
+     * @param encoding Data encoding
+     * @return Deserialized object (new object for immutable types, provided object in case of a mutable type)
+     */
+    public Object readObject(Object deserializeTo, Class<?> type, Serialization.DataEncoding encoding) throws Exception {
+        if (encoding == Serialization.DataEncoding.BINARY) {
+            return readObject(deserializeTo, type);
+        } else if (encoding == Serialization.DataEncoding.STRING) {
+            StringInputStream sis = new StringInputStream(readString());
+            try {
+                deserializeTo = sis.readObject(deserializeTo, type);
+            } finally {
+                sis.close();
+            }
+            return deserializeTo;
+        } else {
+            assert(encoding == Serialization.DataEncoding.XML);
+            XMLDocument d = new XMLDocument(new InputSource(new StringReader(readString())), false);
+            XMLNode n = d.getRootNode();
+            return Serialization.deserialize(n, deserializeTo, type);
+        }
+    }
+
+
 }

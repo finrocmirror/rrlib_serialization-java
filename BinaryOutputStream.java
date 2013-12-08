@@ -22,6 +22,8 @@
 package org.rrlib.serialization;
 
 import org.rrlib.serialization.rtti.DataTypeBase;
+import org.rrlib.xml.XMLDocument;
+import org.rrlib.xml.XMLNode;
 
 /**
  * @author Max Reichardt
@@ -597,6 +599,32 @@ public class BinaryOutputStream {
                 writeString(object.toString());
             } else {
                 throw new RuntimeException("Unsupported type");
+            }
+        }
+    }
+
+    /**
+     * Write object to stream (without any type information)
+     *
+     * @param object Object to write to stream
+     * @param type Type of object (if serialization is consistent, could be base class)
+     * @param encoding Desired data encoding
+     */
+    public void writeObject(Object object, Class<?> type, Serialization.DataEncoding encoding) {
+        if (encoding == Serialization.DataEncoding.BINARY) {
+            writeObject(object, type);
+        } else if (encoding == Serialization.DataEncoding.STRING) {
+            writeString(Serialization.serialize(object));
+        } else {
+            assert(encoding == Serialization.DataEncoding.XML);
+            XMLDocument d = new XMLDocument();
+            try {
+                XMLNode n = d.addRootNode("value");
+                Serialization.serialize(n, object);
+                writeString(d.getXMLDump(true));
+            } catch (Exception e) {
+                e.printStackTrace();
+                writeString("error generating XML code.");
             }
         }
     }

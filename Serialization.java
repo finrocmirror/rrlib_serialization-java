@@ -152,26 +152,53 @@ public class Serialization {
     }
 
     /**
-     * Standard XML serialization fallback implementation
-     * (for Java, because we don't have multiple inheritance here)
+     * Serialize object to XML node (without any type information)
      *
      * @param node XML node
-     * @param rs Serializable object
+     * @param object Serializable object
      */
-    public static void serialize(XMLNode node, StringSerializable rs) throws Exception {
-        node.setContent(serialize(rs));
+    public static void serialize(XMLNode node, Object object) throws Exception {
+        Class<?> type = object.getClass();
+        if (XMLSerializable.class.isAssignableFrom(type)) {
+            ((XMLSerializable)object).serialize(node);
+        } else { // try string serialization (if this does not work, we would have to throw an exception anyway, because there are currently no more alternatives)
+            node.setContent(serialize(object));
+        }
+    }
+
+    /**
+     * Deserialize object from XML node (without any type information)
+     *
+     * @param node XML node
+     * @param deserializeTo Object to call deserialize() on (optional; will contain result of deserialization, in case type is a mutable type)
+     * @param type Type object must have
+     * @return Deserialized object (new object for immutable types, provided object in case of a mutable type)
+     */
+    public static Object deserialize(XMLNode node, Object deserializeTo, Class<?> type) throws Exception {
+        if (XMLSerializable.class.isAssignableFrom(type)) {
+            if (deserializeTo == null) {
+                deserializeTo = type.newInstance();
+            }
+            ((XMLSerializable)deserializeTo).deserialize(node);
+            return deserializeTo;
+        } else { // try string deserialization (if this does not work, we would have to throw an exception anyway, because there are currently no more alternatives)
+            StringInputStream sis = new StringInputStream(node.getTextContent());
+            deserializeTo = sis.readObject(deserializeTo, type);
+            sis.close();
+            return deserializeTo;
+        }
     }
 
     /**
      * Serializes string stream serializable object to string
      * (convenience function)
      *
-     * @param cs Serializable
+     * @param s Serializable
      * @return String
      */
-    public static String serialize(StringSerializable rs) {
+    public static String serialize(Object s) {
         StringOutputStream os = new StringOutputStream();
-        rs.serialize(os);
+        os.appendObject(s);
         return os.toString();
     }
 
@@ -304,60 +331,4 @@ public class Serialization {
     static public <T> void resizeVector(PortDataList<?> vector, int newSize) {
         vector.resize(newSize);
     }
-
-//    /**
-//     * Serialize data to binary output stream - possibly using non-binary encoding
-//     *
-//     * @param os Binary output stream
-//     * @param s Object to serialize
-//     * @param enc Encoding to use
-//     */
-//    static public void serialize(BinaryOutputStream os, RRLibSerializable s, DataEncoding enc) {
-//        if (enc == DataEncoding.BINARY) {
-//            s.serialize(os);
-//        } else if (enc == DataEncoding.STRING) {
-//            os.writeString(serialize(s));
-//        } else {
-//            assert(enc == DataEncoding.XML);
-//            XMLDocument d = new XMLDocument();
-//            try {
-//                XMLNode n = d.addRootNode("value");
-//                s.serialize(n);
-//                os.writeString(d.getXMLDump(true));
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//                os.writeString("error generating XML code.");
-//            }
-//        }
-//    }
-//
-//    /**
-//     * Deserialize data from binary input stream - possibly using non-binary encoding
-//     *
-//     * @param os Binary input stream
-//     * @param s Object to deserialize
-//     * @param enc Encoding to use
-//     */
-//    static public void deserialize(BinaryInputStream is, RRLibSerializable s, DataEncoding enc) {
-//        if (enc == DataEncoding.BINARY) {
-//            s.deserialize(is);
-//        } else if (enc == DataEncoding.STRING) {
-//            StringInputStream sis = new StringInputStream(is.readString());
-//            try {
-//                s.deserialize(sis);
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//            sis.close();
-//        } else {
-//            assert(enc == DataEncoding.XML);
-//            try {
-//                XMLDocument d = new XMLDocument(new InputSource(new StringReader(is.readString())), false);
-//                XMLNode n = d.getRootNode();
-//                s.deserialize(n);
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//        }
-//    }
 }
