@@ -26,6 +26,7 @@ import java.util.ArrayList;
 
 import org.rrlib.serialization.BinaryInputStream;
 import org.rrlib.serialization.BinaryOutputStream;
+import org.rrlib.serialization.BinarySerializable;
 import org.rrlib.serialization.EnumValue;
 import org.rrlib.serialization.PortDataListImpl;
 import org.rrlib.serialization.Serialization;
@@ -76,7 +77,7 @@ public class DataType<T> extends DataTypeBase {
 
         @SuppressWarnings({ "rawtypes" })
         @Override
-        public Object createInstance(int placement) {
+        public Object createInstance() {
             Object result = null;
             if (dataType.getType() == Type.LIST || dataType.getType() == Type.PTR_LIST) {
                 return new PortDataListImpl(dataType.getElementType());
@@ -106,27 +107,17 @@ public class DataType<T> extends DataTypeBase {
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
         @Override
-        public GenericObject createInstanceGeneric(int placement, int managerSize) {
-            return new GenericObjectInstance((RRLibSerializable)createInstance(placement), dataType, null);
+        public GenericObject createInstanceGeneric() {
+            return new GenericObject(createInstance(), dataType, null);
         }
 
-        @Override
-        public void deepCopy(Object src, Object dest, Factory f) {
-            RRLibSerializable s = (RRLibSerializable)src;
-            RRLibSerializable d = (RRLibSerializable)dest;
-
-            Serialization.deepCopy(s, d, f);
-        }
-
-        @Override
-        public void serialize(BinaryOutputStream os, Object obj) {
-            ((RRLibSerializable)obj).serialize(os);
-        }
-
-        @Override
-        public void deserialize(BinaryInputStream is, Object obj) {
-            ((RRLibSerializable)obj).deserialize(is);
-        }
+//        @Override
+//        public void deepCopy(Object src, Object dest, Factory f) {
+//            RRLibSerializable s = (RRLibSerializable)src;
+//            RRLibSerializable d = (RRLibSerializable)dest;
+//
+//            Serialization.deepCopy(s, d, f);
+//        }
     }
 
     public DataType(Class<T> c) {

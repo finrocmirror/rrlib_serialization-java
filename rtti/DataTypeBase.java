@@ -23,13 +23,11 @@ package org.rrlib.serialization.rtti;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import org.rrlib.finroc_core_utils.jc.AtomicInt;
-import org.rrlib.finroc_core_utils.jc.HasDestructor;
 import org.rrlib.logging.Log;
 import org.rrlib.logging.LogLevel;
-import org.rrlib.serialization.BinaryInputStream;
-import org.rrlib.serialization.BinaryOutputStream;
+
 
 /**
  * @author Max Reichardt
@@ -67,7 +65,7 @@ public class DataTypeBase {
 
 
     /** Data type info */
-    static public class DataTypeInfoRaw implements HasDestructor {
+    static public class DataTypeInfoRaw {
 
         /** Type of data type */
         public Type type;
@@ -123,50 +121,27 @@ public class DataTypeBase {
         }
 
         /**
-         * @param placement (Optional) Destination for placement new
-         * @return Instance of Datatype T casted to void*
+         * @return Instance of type casted to Object
          */
-        public Object createInstance(int placement) {
+        public Object createInstance() {
             return null;
         }
 
         /**
-         * @param placement (Optional) Destination for placement new
-         * @param managerSize Size of management info
          * @return Instance of Datatype as Generic object
          */
-        public GenericObject createInstanceGeneric(int placement, int managerSize) {
+        public GenericObject createInstanceGeneric() {
             return null;
         }
 
-        /**
-         * Deep copy objects
-         *
-         * @param src Src object
-         * @param dest Destination object
-         * @param f Factory to use
-         */
-        public void deepCopy(Object src, Object dest, Factory f) {}
-
-        /**
-         * Serialize object to output stream
-         *
-         * @param os OutputStream
-         * @param obj Object to serialize
-         */
-        public void serialize(BinaryOutputStream os, Object obj) {}
-
-        /**
-         * Deserialize object from input stream
-         *
-         * @param os InputStream
-         * @param obj Object to deserialize
-         */
-        public void deserialize(BinaryInputStream is, Object obj) {}
-
-        @Override
-        public void delete() {
-        }
+//        /**
+//         * Deep copy objects
+//         *
+//         * @param src Src object
+//         * @param dest Destination object
+//         * @param f Factory to use
+//         */
+//        public void deepCopy(Object src, Object dest, Factory f) {}
     }
 
 //    /** Maximum number of types */
@@ -185,7 +160,7 @@ public class DataTypeBase {
     private static final HashMap < Class<?>, Integer > annotationIndexLookup = new HashMap < Class<?>, Integer > ();
 
     /** Last annotation index that was used */
-    private static final AtomicInt lastAnnotationIndex = new AtomicInt(0);
+    private static final AtomicInteger lastAnnotationIndex = new AtomicInteger(0);
 
     /**
      * @param name Name of data type
@@ -294,45 +269,19 @@ public class DataTypeBase {
         }
     }
 
-    /**
-     * Deep copy objects
-     *
-     * @param src Src object
-     * @param dest Destination object
-     * @param f Factory to use
-     */
-    public void deepCopy(Object src, Object dest, Factory f) {
-        if (info == null) {
-            return;
-        }
-        info.deepCopy(src, dest, f);
-    }
-
-    /**
-     * Serialize object to output stream
-     *
-     * @param os OutputStream
-     * @param obj Object to serialize
-     */
-    public void serialize(BinaryOutputStream os, Object obj) {
-        if (info == null) {
-            return;
-        }
-        info.serialize(os, obj);
-    }
-
-    /**
-     * Deserialize object from input stream
-     *
-     * @param os InputStream
-     * @param obj Object to deserialize
-     */
-    public void deserialize(BinaryInputStream is, Object obj) {
-        if (info == null) {
-            return;
-        }
-        info.deserialize(is, obj);
-    }
+//    /**
+//     * Deep copy objects
+//     *
+//     * @param src Src object
+//     * @param dest Destination object
+//     * @param f Factory to use
+//     */
+//    public void deepCopy(Object src, Object dest, Factory f) {
+//        if (info == null) {
+//            return;
+//        }
+//        info.deepCopy(src, dest, f);
+//    }
 
     /**
      * Helper method that safely provides static data type list
@@ -395,35 +344,23 @@ public class DataTypeBase {
     }
 
     /**
-     * @param placement (Optional) Destination for placement new
-     * @return Instance of Datatype T casted to void*
-     */
-    public Object createInstance(int placement) {
-        if (info == null) {
-            return null;
-        }
-        return info.createInstance(placement);
-    }
-
-    /**
-     * @param placement (Optional) Destination for placement new
-     * @return Instance of Datatype as Generic object
-     */
-    GenericObject createInstanceGeneric(int placement) {
-        if (info == null) {
-            return null;
-        }
-        return info.createInstanceGeneric(placement, 0);
-    }
-
-    /**
      * @return Instance of Datatype T casted to void*
      */
     public Object createInstance() {
         if (info == null) {
             return null;
         }
-        return createInstance(0);
+        return info.createInstance();
+    }
+
+    /**
+     * @return Instance of Datatype as Generic object
+     */
+    GenericObject createInstanceGeneric() {
+        if (info == null) {
+            return null;
+        }
+        return info.createInstanceGeneric();
     }
 
     /**
@@ -431,7 +368,7 @@ public class DataTypeBase {
      * @return Instance of Datatype as Generic object
      */
     public GenericObject createInstanceGeneric(GenericObjectManager manager) {
-        GenericObject result = createInstanceGeneric(0);
+        GenericObject result = createInstanceGeneric();
         result.jmanager = manager;
 
         if (manager != null) {

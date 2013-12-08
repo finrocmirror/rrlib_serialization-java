@@ -762,4 +762,56 @@ public class BinaryInputStream {
     public long readDuration() {
         return readLong() / 1000000;
     }
+
+    /**
+     * Deserializes object of specified type
+     *
+     * @param type Type object must have
+     * @return Deserialized object (new object for immutable types, provided object in case of a mutable type)
+     */
+    public Object readObject(Class<?> type) throws Exception {
+        return readObject(null, type);
+    }
+
+    /**
+     * Deserializes object of specified type
+     *
+     * @param deserializeTo Object to call deserialize() on (optional; will contain result of deserialization, in case type is a mutable type)
+     * @param type Type object must have
+     * @return Deserialized object (new object for immutable types, provided object in case of a mutable type)
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public Object readObject(Object deserializeTo, Class<?> type) throws Exception {
+        if (BinarySerializable.class.isAssignableFrom(type)) {
+            if (deserializeTo == null) {
+                deserializeTo = type.newInstance();
+            }
+            ((BinarySerializable)deserializeTo).deserialize(this);
+            return deserializeTo;
+        } else if (type.isPrimitive()) {
+            if (type == byte.class) {
+                return readByte();
+            } else if (type == short.class) {
+                return readShort();
+            } else if (type == int.class) {
+                return readInt();
+            } else if (type == long.class) {
+                return readLong();
+            } else if (type == float.class) {
+                return readFloat();
+            } else if (type == double.class) {
+                return readDouble();
+            } else if (type == boolean.class) {
+                return readBoolean();
+            } else {
+                throw new Exception("Unsupported primitive type");
+            }
+        } else if (type.isEnum()) {
+            return readEnum((Class <? extends Enum >)type);
+        } else if (type == String.class) {
+            return readString();
+        } else {
+            throw new Exception("Unsupported type");
+        }
+    }
 }

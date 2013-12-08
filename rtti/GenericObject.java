@@ -35,7 +35,7 @@ package org.rrlib.serialization.rtti;
  *
  * Memory Layout of all subclasses: vtable ptr | datatype ptr | object ptr | management info raw memory of size M
  */
-public abstract class GenericObject extends TypedObjectImpl {
+public class GenericObject extends TypedObjectImpl {
 
     /** Wrapped object */
     protected Object wrapped;
@@ -44,11 +44,14 @@ public abstract class GenericObject extends TypedObjectImpl {
     protected GenericObjectManager jmanager;
 
     /**
-     * @param wrapped Wrapped object
-     * @param dt Data Type of wrapped object
+     * @param wrappedObject Wrapped object
+     * @param dt Data type of wrapped object
+     * @param manager Manager of wrapped object (may be null)
      */
-    GenericObject(DataTypeBase dt) {
-        type = dt;
+    public GenericObject(Object wrappedObject, DataTypeBase dt, GenericObjectManager manager) {
+        this.wrapped = wrappedObject;
+        this.type = dt;
+        this.jmanager = manager;
     }
 
     /**
@@ -58,30 +61,30 @@ public abstract class GenericObject extends TypedObjectImpl {
         return wrapped;
     }
 
-    /**
-     * Deep copy source object to this object
-     * (types MUST match)
-     *
-     * @param source Source object
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void deepCopyFrom(GenericObject source, Factory f) {
-        if (source.type == type) {
-            deepCopyFrom((Object)source.wrapped, f);
-        } else if (Copyable.class.isAssignableFrom(type.getJavaClass())) {
-            ((Copyable)wrapped).copyFrom(source.wrapped);
-        } else {
-            throw new RuntimeException("Types must match");
-        }
-    }
-
-    /**
-     * Deep copy source object to this object
-     * (types MUST match)
-     *
-     * @param source Source object
-     */
-    protected abstract void deepCopyFrom(Object source, Factory f);
+//    /**
+//     * Deep copy source object to this object
+//     * (types MUST match)
+//     *
+//     * @param source Source object
+//     */
+//    @SuppressWarnings({ "unchecked", "rawtypes" })
+//    public void deepCopyFrom(GenericObject source, Factory f) {
+//        if (source.type == type) {
+//            deepCopyFrom((Object)source.wrapped, f);
+//        } else if (Copyable.class.isAssignableFrom(type.getJavaClass())) {
+//            ((Copyable)wrapped).copyFrom(source.wrapped);
+//        } else {
+//            throw new RuntimeException("Types must match");
+//        }
+//    }
+//
+//    /**
+//     * Deep copy source object to this object
+//     * (types MUST match)
+//     *
+//     * @param source Source object
+//     */
+//    protected void deepCopyFrom(Object source, Factory f)
 
     /**
      * @return Management information for this generic object.
@@ -94,7 +97,11 @@ public abstract class GenericObject extends TypedObjectImpl {
      * Clear any shared resources that this object holds on to
      * (e.g. for reusing object in pool)
      */
-    public abstract void clear();
+    public void clear() {
+        if (getData() instanceof Clearable) {
+            ((Clearable)getData()).clearObject();
+        }
+    }
 
 //    /**
 //     * Deserialize data from binary input stream - possibly using non-binary encoding.

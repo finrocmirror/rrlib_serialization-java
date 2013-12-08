@@ -551,6 +551,56 @@ public class BinaryOutputStream {
         }
     }
 
+    /**
+     * Write object to stream (without any type information)
+     *
+     * @param object Object to write to stream
+     * @param type Type of object (if serialization is consistent, could be base class)
+     */
+    public void writeObject(Object object) {
+        writeObject(object, object.getClass());
+    }
+
+    /**
+     * Write object to stream (without any type information)
+     *
+     * @param object Object to write to stream
+     * @param type Type of object (if serialization is consistent, could be base class)
+     */
+    @SuppressWarnings("rawtypes")
+    public void writeObject(Object object, Class<?> type) {
+        if (BinarySerializable.class.isAssignableFrom(type)) {
+            ((BinarySerializable)object).serialize(this);
+        } else if (type.isPrimitive()) {
+            if (type == byte.class) {
+                writeByte((Byte)object);
+            } else if (type == short.class) {
+                writeShort((Short)object);
+            } else if (type == int.class) {
+                writeInt((Integer)object);
+            } else if (type == long.class) {
+                writeLong((Long)object);
+            } else if (type == float.class) {
+                writeFloat((Float)object);
+            } else if (type == double.class) {
+                writeDouble((Double)object);
+            } else if (type == boolean.class) {
+                writeBoolean((Boolean)object);
+            } else {
+                throw new RuntimeException("Unsupported primitive type");
+            }
+        } else {
+            assert(object != null && (object.getClass() == type));
+            if (type.isEnum()) {
+                writeEnum((Enum)object);
+            } else if (type == String.class) {
+                writeString(object.toString());
+            } else {
+                throw new RuntimeException("Unsupported type");
+            }
+        }
+    }
+
 //    /**
 //     * Serialize Object of arbitrary type to stream
 //     * (including type information)
