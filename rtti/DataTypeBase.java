@@ -46,7 +46,7 @@ import org.rrlib.logging.LogLevel;
 public class DataTypeBase {
 
     /** type of data type */
-    public enum Type {
+    public enum Classification {
         PLAIN, // Plain type
         LIST, // List of objects of same type
         PTR_LIST, // List of objects with possibly objects of different types
@@ -68,7 +68,7 @@ public class DataTypeBase {
     static public class DataTypeInfoRaw {
 
         /** Type of data type */
-        public Type type;
+        public Classification type;
 
         /** Name of data type */
         public String name;
@@ -221,11 +221,11 @@ public class DataTypeBase {
     /**
      * @return return "Type" of data type (see enum)
      */
-    public Type getType() {
+    public Classification getType() {
         if (info != null) {
             return info.type;
         }
-        return Type.NULL;
+        return Classification.NULL;
     }
 
     /**
@@ -432,10 +432,10 @@ public class DataTypeBase {
         if (info == null || dataType.info == null) {
             return false;
         }
-        if (getType() == Type.UNKNOWN || dataType.getType() == Type.UNKNOWN) {
+        if (getType() == Classification.UNKNOWN || dataType.getType() == Classification.UNKNOWN) {
             return false;
         }
-        if (getType() == Type.LIST && dataType.getType() == Type.LIST) {
+        if (getType() == Classification.LIST && dataType.getType() == Classification.LIST) {
             return getElementType().isConvertibleTo(dataType.getElementType());
         }
         if ((info.javaClass != null) && (dataType.info.javaClass != null)) {

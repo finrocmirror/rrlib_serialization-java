@@ -43,7 +43,7 @@ public class DataType<T> extends DataTypeBase {
         DataTypeBase dataType;
 
         public DataTypeInfo(Class<?> c) {
-            type = Type.PLAIN;
+            type = Classification.PLAIN;
             javaClass = c;
             name = c.getSimpleName();
             if (c.isEnum()) {
@@ -55,12 +55,12 @@ public class DataType<T> extends DataTypeBase {
             }
         }
 
-        public DataTypeInfo(DataTypeBase e, Type type) {
+        public DataTypeInfo(DataTypeBase e, Classification type) {
             this.type = type;
             this.elementType = e;
-            if (type == Type.LIST) {
+            if (type == Classification.LIST) {
                 name = "List<" + e.getName() + ">";
-            } else if (type == Type.PTR_LIST) {
+            } else if (type == Classification.PTR_LIST) {
                 name = "List<" + e.getName() + "*>";
             } else {
                 throw new RuntimeException("Unsupported");
@@ -75,7 +75,7 @@ public class DataType<T> extends DataTypeBase {
         @Override
         public Object createInstance() {
             Object result = null;
-            if (dataType.getType() == Type.LIST || dataType.getType() == Type.PTR_LIST) {
+            if (dataType.getType() == Classification.LIST || dataType.getType() == Classification.PTR_LIST) {
                 return new PortDataListImpl(dataType.getElementType());
             }
 
@@ -131,16 +131,16 @@ public class DataType<T> extends DataTypeBase {
         }
         ((DataTypeInfo)info).dataType = this;
 
-        if (createListTypes && ((DataTypeInfo)info).type == Type.PLAIN && info.listType == null) {
-            info.listType = new DataType(this, Type.LIST);
-            info.sharedPtrListType = new DataType(this, Type.PTR_LIST);
+        if (createListTypes && ((DataTypeInfo)info).type == Classification.PLAIN && info.listType == null) {
+            info.listType = new DataType(this, Classification.LIST);
+            info.sharedPtrListType = new DataType(this, Classification.PTR_LIST);
         }
     }
 
     /**
      * Constructor for list types
      */
-    private DataType(DataTypeBase e, Type t) {
+    private DataType(DataTypeBase e, Classification t) {
         super(new DataTypeInfo(e, t));
         ((DataTypeInfo)info).dataType = this;
     }
