@@ -21,6 +21,13 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization.rtti;
 
+import org.rrlib.serialization.BinaryInputStream;
+import org.rrlib.serialization.BinaryOutputStream;
+import org.rrlib.serialization.Serialization;
+import org.rrlib.serialization.StringInputStream;
+import org.rrlib.serialization.StringOutputStream;
+import org.rrlib.xml.XMLNode;
+
 
 /**
  * @author Max Reichardt
@@ -61,30 +68,15 @@ public class GenericObject extends TypedObjectImpl {
         return wrapped;
     }
 
-//    /**
-//     * Deep copy source object to this object
-//     * (types MUST match)
-//     *
-//     * @param source Source object
-//     */
-//    @SuppressWarnings({ "unchecked", "rawtypes" })
-//    public void deepCopyFrom(GenericObject source, Factory f) {
-//        if (source.type == type) {
-//            deepCopyFrom((Object)source.wrapped, f);
-//        } else if (Copyable.class.isAssignableFrom(type.getJavaClass())) {
-//            ((Copyable)wrapped).copyFrom(source.wrapped);
-//        } else {
-//            throw new RuntimeException("Types must match");
-//        }
-//    }
-//
-//    /**
-//     * Deep copy source object to this object
-//     * (types MUST match)
-//     *
-//     * @param source Source object
-//     */
-//    protected void deepCopyFrom(Object source, Factory f)
+    /**
+     * Deep copy source object to this object
+     *
+     * @param source Source object
+     */
+    public void deepCopyFrom(GenericObject source, Factory f) {
+        wrapped = Serialization.deepCopy(source.wrapped, wrapped, f);
+        type = source.type;
+    }
 
     /**
      * @return Management information for this generic object.
@@ -103,24 +95,60 @@ public class GenericObject extends TypedObjectImpl {
         }
     }
 
-//    /**
-//     * Deserialize data from binary input stream - possibly using non-binary encoding.
-//     *
-//     * @param is Binary input stream
-//     * @param enc Encoding to use
-//     */
-//    public void deserialize(BinaryInputStream is, DataEncoding enc) {
-//        Serialization.deserialize(is, getData(), enc);
-//    }
-//
-//    /**
-//     * Serialize data to binary output stream - possibly using non-binary encoding.
-//     *
-//     * @param os Binary output stream
-//     * @param enc Encoding to use
-//     */
-//    public void serialize(BinaryOutputStream os, DataEncoding enc) {
-//        Serialization.serialize(os, getData(), enc);
-//    }
+    /**
+     * Deserialize data from binary input stream - possibly using non-binary encoding.
+     *
+     * @param stream Binary input stream
+     * @param enc Encoding to use
+     */
+    public void deserialize(BinaryInputStream stream, Serialization.DataEncoding enc) throws Exception {
+        wrapped = stream.readObject(wrapped, type.getJavaClass(), enc);
+    }
+
+    /**
+     * Serialize data to binary output stream - possibly using non-binary encoding.
+     *
+     * @param stream Binary output stream
+     * @param enc Encoding to use
+     */
+    public void serialize(BinaryOutputStream stream, Serialization.DataEncoding enc) {
+        stream.writeObject(getData(), type.getJavaClass(), enc);
+    }
+
+    /**
+     * Deserialize data from string stream
+     *
+     * @param stream String output stream
+     */
+    public void deserialize(StringInputStream stream) throws Exception {
+        wrapped = stream.readObject(wrapped, type.getJavaClass());
+    }
+
+    /**
+     * Serialize data to string stream
+     *
+     * @param node String input stream
+     */
+    public void serialize(StringOutputStream stream) throws Exception {
+        stream.appendObject(wrapped, type.getJavaClass());
+    }
+
+    /**
+     * Deserialize data from XML node
+     *
+     * @param node XML node
+     */
+    public void deserialize(XMLNode node) throws Exception {
+        wrapped = Serialization.deserialize(node, wrapped, type.getJavaClass());
+    }
+
+    /**
+     * Serialize data to XML node
+     *
+     * @param node XML node
+     */
+    public void serialize(XMLNode node) throws Exception {
+        Serialization.serialize(node, this);
+    }
 
 }

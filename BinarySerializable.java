@@ -21,6 +21,8 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization;
 
+import org.rrlib.serialization.rtti.DataType;
+
 
 /**
  * @author Max Reichardt
@@ -28,6 +30,9 @@ package org.rrlib.serialization;
  * Classes that implement this interface can be serialized to and deserialized from binary data
  */
 public interface BinarySerializable {
+
+    /** So that binary serializable can be used as type (e.g. in Finroc ports) */
+    public final static DataType<BinarySerializable> TYPE = new DataType<BinarySerializable>(BinarySerializable.class);
 
     /**
      * Serialize object to binary stream
@@ -42,4 +47,20 @@ public interface BinarySerializable {
      * @param node Binary stream to deserialize from
      */
     public void deserialize(BinaryInputStream stream) throws Exception;
+
+    /**
+     * Empty Binary serializable
+     */
+    public static class Empty implements BinarySerializable {
+
+        public final static DataType<Empty> TYPE = new DataType<Empty>(Empty.class, "EmptyBinarySerializable");
+
+        @Override
+        public void serialize(BinaryOutputStream stream) {
+        }
+
+        @Override
+        public void deserialize(BinaryInputStream stream) throws Exception {
+        }
+    }
 }

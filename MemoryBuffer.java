@@ -285,6 +285,23 @@ public class MemoryBuffer implements BinarySerializable, ConstSource, Sink, Copy
         backend.dumpToFile(filename, curSize);
     }
 
+    public boolean equals(Object other) {
+        // two memory buffers are equal if they have the same content (not necessarily the same backend size)
+        if (other instanceof MemoryBuffer) {
+            MemoryBuffer otherBuffer = (MemoryBuffer)other;
+            if (curSize != otherBuffer.curSize) {
+                return false;
+            }
+            for (int i = 0; i < curSize; i++) {
+                if (backend.getByte(i) != otherBuffer.backend.getByte(i)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public void applyChange(MemoryBuffer t, long offset, long dummy) {
         ensureCapacity((int)(t.getSize() + offset), true, getSize());

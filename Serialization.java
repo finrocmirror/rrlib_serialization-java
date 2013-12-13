@@ -21,9 +21,21 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectStreamClass;
+import java.io.Serializable;
+import java.util.Arrays;
+
 import org.rrlib.logging.Log;
 import org.rrlib.logging.LogLevel;
+import org.rrlib.serialization.rtti.Copyable;
 import org.rrlib.serialization.rtti.Factory;
+import org.rrlib.serialization.rtti.GenericObject;
 import org.rrlib.xml.XMLNode;
 
 /**
@@ -49,6 +61,9 @@ public class Serialization {
 
     /** may only be accessed in synchronized context */
     private static final ThreadLocal<MemoryBuffer> buffer = new ThreadLocal<MemoryBuffer>();
+
+    /** Classloader to use for deep copies via Java native binary serialization */
+    private static ClassLoader deepCopyClassLoader = Serialization.class.getClassLoader();
 
     public static int staticInit() {
         for (int i = 0; i < 256; i++) {
@@ -242,20 +257,116 @@ public class Serialization {
         return os.readEnum(eclass);
     }
 
-
     /**
-     * Creates deep copy of serializable object
+     * Creates deep copy of object - using the most efficient available way of creating such a copy:
+     *
+     * (1) Immutable objects are returned directly (as the JVM would provide the same objects for some types anyway)
+     * (2) If the Copyable interface is implemented, it is used
+     * (3) Binary serialization if available
+     * (4) java.io binary serialization if available
+     * (5) String serialization if available
+     * (6) XML serialization if available
      *
      * @param src Object to be copied
-     * @param dest Object to copy to
+     * @return Object that is a deep copy of src
      */
-    public static <T extends BinarySerializable> void deepCopy(T src, T dest, Factory f) {
-        MemoryBuffer buf = buffer.get();
-        if (buf == null) {
-            buf = new MemoryBuffer(16384);
-            buffer.set(buf);
+    public static <T> T deepCopy(T src) {
+        return deepCopy(src, null, null);
+    }
+
+    /**
+     * Creates deep copy of object - using the most efficient available way of creating such a copy:
+     *
+     * (1) Immutable objects are returned directly (as the JVM would provide the same objects for some types anyway)
+     * (2) If the Copyable interface is implemented, it is used
+     * (3) Binary serialization if available
+     * (4) java.io binary serialization if available
+     * (5) String serialization if available
+     * (6) XML serialization if available
+     *
+     * @param src Object to be copied
+     * @param dest Object to copy to (optional; will contain result of copy, in case type is a mutable type)
+     * @return Object that is a deep copy of src
+     */
+    public static <T> T deepCopy(T src, T dest) {
+        return deepCopy(src, dest, null);
+    }
+
+    /**
+     * Creates deep copy of object - using the most efficient available way of creating such a copy:
+     *
+     * (1) Immutable objects are returned directly (as the JVM would provide the same objects for some types anyway)
+     * (2) If the Copyable interface is implemented, it is used
+     * (3) Binary serialization if available
+     * (4) java.io binary serialization if available
+     * (5) String serialization if available
+     * (6) XML serialization if available
+     *
+     * @param src Object to be copied
+     * @param dest Object to copy to (optional; will contain result of copy, in case type is a mutable type)
+     * @param f Factory to use (optional)
+     * @return Object that is a deep copy of src
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public static <T> T deepCopy(T src, T dest, Factory f) {
+        if (src == null) {
+            return null;
         }
-        deepCopyImpl(src, dest, f, buf);
+        Class<?> type = src.getClass();
+        if (type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type) || String.class.equals(type)) {
+            return src;
+        }
+        if (dest == null || dest.getClass() != type) {
+            try {
+                dest = (T)type.newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        if (Copyable.class.isAssignableFrom(type)) {
+            ((Copyable)dest).copyFrom(src);
+            return dest;
+        } else if (BinarySerializable.class.isAssignableFrom(type)) {
+            MemoryBuffer buf = buffer.get();
+            if (buf == null) {
+                buf = new MemoryBuffer(16384);
+                buffer.set(buf);
+            }
+            deepCopyImpl((BinarySerializable)src, (BinarySerializable)dest, f, buf);
+            return dest;
+        }
+        try {
+            if (Serializable.class.isAssignableFrom(type)) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(baos);
+                oos.writeObject(src);
+                oos.close();
+                baos.close();
+                ObjectInputStream ois = new ObjectInputStreamUsingPluginClassLoader(new ByteArrayInputStream(baos.toByteArray()));
+                dest = (T)ois.readObject();
+                ois.close();
+            } else if (StringSerializable.class.isAssignableFrom(type)) {
+                String string = serialize(src);
+                dest = (T)new StringInputStream(string).readObject(dest, type);
+            } else if (XMLSerializable.class.isAssignableFrom(type)) {
+                MemoryBuffer buf = buffer.get();
+                if (buf == null) {
+                    buf = new MemoryBuffer(16384);
+                    buffer.set(buf);
+                }
+                buf.clear();
+                BinaryOutputStream stream = new BinaryOutputStream(buf);
+                stream.writeObject(src, type, DataEncoding.XML);
+                stream.close();
+                BinaryInputStream istream = new BinaryInputStream(buf);
+                dest = (T)istream.readObject(dest, type);
+            } else {
+                throw new RuntimeException("Object of type " + src.getClass().getName() + " cannot be deep-copied");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return dest;
     }
 
     /**
@@ -265,7 +376,7 @@ public class Serialization {
      * @param dest Object to copy to
      * @param buf Memory buffer to use
      */
-    public static <T extends BinarySerializable> void deepCopyImpl(T src, T dest, Factory f, MemoryBuffer buf) {
+    private static <T extends BinarySerializable> void deepCopyImpl(T src, T dest, Factory f, MemoryBuffer buf) {
         buf.clear();
         BinaryOutputStream os = new BinaryOutputStream(buf);
         src.serialize(os);
@@ -282,45 +393,70 @@ public class Serialization {
         ci.close();
     }
 
-//    /**
-//     * Serialization-based equals()-method
-//     * (not very efficient/RT-capable - should therefore not be called regular loops)
-//     *
-//     * @param obj1 Object1
-//     * @param obj2 Object2
-//     * @returns true if both objects are serialized to the same binary data (usually they are equal then)
-//     */
-//    public static boolean equals(GenericObject obj1, GenericObject obj2) {
-//        if (obj1 == obj2) {
-//            return true;
-//        }
-//        if (obj1 == null || obj2 == null || obj1.getType() != obj2.getType()) {
-//            return false;
-//        }
-//
-//        MemoryBuffer buf1 = new MemoryBuffer();
-//        MemoryBuffer buf2 = new MemoryBuffer();
-//        BinaryOutputStream os1 = new BinaryOutputStream(buf1);
-//        BinaryOutputStream os2 = new BinaryOutputStream(buf2);
-//        obj1.serialize(os1);
-//        obj2.serialize(os2);
-//        os1.close();
-//        os2.close();
-//
-//        if (buf1.getSize() != buf2.getSize()) {
-//            return false;
-//        }
-//
-//        BinaryInputStream is1 = new BinaryInputStream(buf1);
-//        BinaryInputStream is2 = new BinaryInputStream(buf2);
-//
-//        for (int i = 0; i < buf1.getSize(); i++) {
-//            if (is1.readByte() != is2.readByte()) {
-//                return false;
-//            }
-//        }
-//        return true;
-//    }
+    /**
+     * Serialization-based equals()-method
+     * (not very efficient - should therefore not be called regular loops)
+     *
+     * @param obj1 Object1
+     * @param obj2 Object2
+     * @returns True if both objects are serialized to the same data (usually they are equal then)
+     */
+    public static boolean equals(Object obj1, Object obj2) {
+        if (obj1 == obj2) {
+            return true;
+        }
+        if (obj1 == null || obj2 == null || obj1.getClass() != obj2.getClass()) {
+            return false;
+        }
+        if (obj1 instanceof GenericObject) {
+            return equals((GenericObject)obj1, (GenericObject)obj2);
+        }
+        if (obj1 instanceof BinarySerializable) {
+            MemoryBuffer buf1 = new MemoryBuffer();
+            MemoryBuffer buf2 = new MemoryBuffer();
+            BinaryOutputStream os1 = new BinaryOutputStream(buf1);
+            BinaryOutputStream os2 = new BinaryOutputStream(buf2);
+            os1.writeObject(obj1);
+            os2.writeObject(obj2);
+            os1.close();
+            os2.close();
+            return buf1.equals(buf2);
+        } else if (obj1 instanceof Serializable) {
+            return Arrays.equals(toByteArray((Serializable)obj1), toByteArray((Serializable)obj2));
+        } else if (obj1 instanceof StringSerializable) {
+            return serialize(obj1).equals(serialize(obj2));
+        } else if (obj1 instanceof XMLSerializable) {
+            MemoryBuffer buf1 = new MemoryBuffer();
+            MemoryBuffer buf2 = new MemoryBuffer();
+            BinaryOutputStream os1 = new BinaryOutputStream(buf1);
+            BinaryOutputStream os2 = new BinaryOutputStream(buf2);
+            os1.writeObject(obj1, obj1.getClass(), DataEncoding.XML);
+            os2.writeObject(obj2, obj2.getClass(), DataEncoding.XML);
+            os1.close();
+            os2.close();
+            return buf1.equals(buf2);
+        } else {
+            throw new RuntimeException("Objects of type " + obj1.getClass().getName() + " cannot be serialized and compared");
+        }
+    }
+
+    /**
+     * Serializes Java-Serializable object to byte array
+     *
+     * @param t Object to serialize
+     * @return Byte array containing serialized object
+     */
+    public static byte[] toByteArray(Serializable t) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ObjectOutputStream oos = new ObjectOutputStream(baos);
+            oos.writeObject(t);
+            oos.close();
+            return baos.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Converting object to byte array failed", e);
+        }
+    }
 
     /**
      * Resize vector (also works for vectors with noncopyable types)
@@ -330,5 +466,40 @@ public class Serialization {
      */
     static public <T> void resizeVector(PortDataList<?> vector, int newSize) {
         vector.resize(newSize);
+    }
+
+    /**
+     * TODO: check whether there's a more elegant way
+     *
+     * Set class loader used for deep copies.
+     * This is only necessary if classes are to be cloned that are accessible
+     * by a different class loader only.
+     *
+     * @param classLoader Class Loader to use
+     */
+    static public void setDeepCopyClassLoader(ClassLoader classLoader) {
+        deepCopyClassLoader = classLoader;
+    }
+
+    /**
+     * @author jens
+     *
+     * Local helper class for resolving classes via plugin class loader.
+     */
+    private static class ObjectInputStreamUsingPluginClassLoader extends ObjectInputStream {
+
+        @Override
+        public Class<?> resolveClass(ObjectStreamClass descriptor) throws IOException, ClassNotFoundException {
+            try {
+                return deepCopyClassLoader.loadClass(descriptor.getName());
+            } catch (Exception e) {
+            }
+            return super.resolveClass(descriptor);
+        }
+
+        public ObjectInputStreamUsingPluginClassLoader(InputStream in) throws IOException {
+            super(in);
+        }
+
     }
 }

@@ -24,12 +24,8 @@ package org.rrlib.serialization.rtti;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 
-import org.rrlib.serialization.BinaryInputStream;
-import org.rrlib.serialization.BinaryOutputStream;
-import org.rrlib.serialization.BinarySerializable;
 import org.rrlib.serialization.EnumValue;
 import org.rrlib.serialization.PortDataListImpl;
-import org.rrlib.serialization.Serialization;
 
 /**
  * @author Max Reichardt
@@ -105,7 +101,6 @@ public class DataType<T> extends DataTypeBase {
             return result;
         }
 
-        @SuppressWarnings({ "unchecked", "rawtypes" })
         @Override
         public GenericObject createInstanceGeneric() {
             return new GenericObject(createInstance(), dataType, null);
