@@ -1,5 +1,5 @@
 <targets>
-  <rrlib libs="rrlib_xml.jar">
+  <rrlib>
     <sources>**.java</sources>
   </rrlib>
 </targets>
