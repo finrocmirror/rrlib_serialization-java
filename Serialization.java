@@ -316,7 +316,8 @@ public class Serialization {
         if (type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type) || String.class.equals(type)) {
             return src;
         }
-        if (dest == null || dest.getClass() != type) {
+        boolean useNativeSerialization = Serializable.class.isAssignableFrom(type) && (!Copyable.class.isAssignableFrom(type)) && (!BinarySerializable.class.isAssignableFrom(type));
+        if ((dest == null || dest.getClass() != type) && (!useNativeSerialization)) {
             try {
                 dest = (T)type.newInstance();
             } catch (Exception e) {
@@ -336,13 +337,8 @@ public class Serialization {
             return dest;
         }
         try {
-            if (Serializable.class.isAssignableFrom(type)) {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ObjectOutputStream oos = new ObjectOutputStream(baos);
-                oos.writeObject(src);
-                oos.close();
-                baos.close();
-                ObjectInputStream ois = new ObjectInputStreamUsingPluginClassLoader(new ByteArrayInputStream(baos.toByteArray()));
+            if (useNativeSerialization) {
+                ObjectInputStream ois = new ObjectInputStreamUsingPluginClassLoader(new ByteArrayInputStream(toByteArray((Serializable)src)));
                 dest = (T)ois.readObject();
                 ois.close();
             } else if (StringSerializable.class.isAssignableFrom(type)) {
