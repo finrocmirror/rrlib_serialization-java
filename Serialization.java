@@ -313,7 +313,9 @@ public class Serialization {
             return null;
         }
         Class<?> type = src.getClass();
-        if (type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type) || String.class.equals(type)) {
+        boolean immutable = type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type) || String.class.equals(type);
+        immutable &= (!Copyable.class.isAssignableFrom(type));
+        if (immutable) {
             return src;
         }
         boolean useNativeSerialization = Serializable.class.isAssignableFrom(type) && (!Copyable.class.isAssignableFrom(type)) && (!BinarySerializable.class.isAssignableFrom(type));
