@@ -405,7 +405,7 @@ public class Serialization {
             return false;
         }
         if (obj1 instanceof GenericObject) {
-            return equals((GenericObject)obj1, (GenericObject)obj2);
+            return equals(((GenericObject)obj1).getData(), ((GenericObject)obj2).getData());
         }
         if (obj1 instanceof BinarySerializable) {
             MemoryBuffer buf1 = new MemoryBuffer();
