@@ -309,6 +309,9 @@ public class Serialization {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public static <T> T deepCopy(T src, T dest, Factory f) {
+        // TODO: This should produce minimal overhead for copyable types
+        // TODO: native serialization always causes object creation; if dest is specified, other types of serialization are probably favorable
+
         if (src == null) {
             return null;
         }
@@ -357,7 +360,7 @@ public class Serialization {
                 stream.writeObject(src, type, DataEncoding.XML);
                 stream.close();
                 BinaryInputStream istream = new BinaryInputStream(buf);
-                dest = (T)istream.readObject(dest, type);
+                dest = (T)istream.readObject(dest, type, DataEncoding.XML);
             } else {
                 throw new RuntimeException("Object of type " + src.getClass().getName() + " cannot be deep-copied");
             }
