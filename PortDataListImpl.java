@@ -109,10 +109,23 @@ public class PortDataListImpl<T extends BinarySerializable> implements PortDataL
 
     @Override
     public void copyFrom(PortDataList<T> source) {
-        if (elementType == null) {
-            elementType = ((PortDataListImpl<T>)source).elementType;
+        PortDataList<T> other = ((PortDataListImpl<T>)source);
+        elementType = other.getElementType();
+        if (size() > other.size()) {
+            resize(other.size());
         }
-        Serialization.deepCopy(source, this, null);
+
+        try {
+            for (int i = 0; i < other.size(); i++) {
+                if (i >= size()) {
+                    wrapped.add(Serialization.deepCopy(other.get(i)));
+                } else {
+                    wrapped.set(i, Serialization.deepCopy(other.get(i), this.get(i)));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

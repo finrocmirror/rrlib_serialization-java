@@ -22,6 +22,7 @@
 package org.rrlib.serialization;
 
 import org.rrlib.serialization.rtti.Copyable;
+import org.rrlib.serialization.rtti.DataTypeBase;
 import org.rrlib.serialization.rtti.GenericChangeable;
 
 /**
@@ -49,4 +50,9 @@ public interface PortDataList<T> extends BinarySerializable, Copyable<PortDataLi
      * @param newSize New size of list
      */
     public void resize(int newSize);
+
+    /**
+     * @return Element type
+     */
+    public DataTypeBase getElementType();
 }
