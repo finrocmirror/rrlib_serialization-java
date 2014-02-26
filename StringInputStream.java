@@ -319,7 +319,11 @@ public class StringInputStream {
                 return readBoolean();
             } else if (type == float.class || type == double.class) {
                 String s = readWhile("-.", StringInputStream.DIGIT | StringInputStream.WHITESPACE | StringInputStream.LETTER, true);
-                return type == float.class ? Float.parseFloat(s) : Double.parseDouble(s);
+                if (type == float.class) {
+                    return Float.parseFloat(s);
+                } else {
+                    return Double.parseDouble(s);
+                }
             } else {
                 String s = readWhile("-", StringInputStream.DIGIT | StringInputStream.WHITESPACE, true);
                 if (type == byte.class) {
