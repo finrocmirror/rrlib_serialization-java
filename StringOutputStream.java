@@ -127,7 +127,7 @@ public class StringOutputStream {
     public StringOutputStream appendObject(Object object, Class<?> type) {
         if (StringSerializable.class.isAssignableFrom(type)) {
             ((StringSerializable)object).serialize(this);
-        } else if (type.isPrimitive()) {
+        } else if (type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type)) {
             append(object.toString());
         } else {
             assert(object != null && (object.getClass() == type));
