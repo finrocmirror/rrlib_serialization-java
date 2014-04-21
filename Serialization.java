@@ -95,6 +95,33 @@ public class Serialization {
     }
 
     /**
+     * @param type Type to check
+     * @return Returns whether provided type is serializable to binary streams
+     */
+    public static boolean isBinarySerializable(Class<?> type) {
+        // This needs to be adapted if BinaryOutputStream.writeObect() is extended
+        return type != null && (BinarySerializable.class.isAssignableFrom(type) || type.isPrimitive() || type.isEnum() || type.equals(String.class));
+    }
+
+    /**
+     * @param type Type to check
+     * @return Returns whether provided type is serializable to string streams
+     */
+    public static boolean isStringSerializable(Class<?> type) {
+        // This needs to be adapted if StringOutputStream.appendObject() is extended
+        return type != null && (StringSerializable.class.isAssignableFrom(type) || type.isPrimitive() || Number.class.isAssignableFrom(type)
+                                || Boolean.class.equals(type) || type.isEnum() || type.equals(String.class));
+    }
+
+    /**
+     * @param type Type to check
+     * @return Returns whether provided type is serializable to xml nodes
+     */
+    public static boolean isXmlSerializable(Class<?> type) {
+        return type != null && (XMLSerializable.class.isAssignableFrom(type) || isStringSerializable(type));
+    }
+
+    /**
      * Serializes BinarySerializable to hex string
      *
      * @param cs BinarySerializable
