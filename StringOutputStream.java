@@ -132,7 +132,11 @@ public class StringOutputStream {
         } else {
             assert(object != null && (object.getClass() == type));
             if (type.isEnum()) {
-                append((Enum)object);
+                if (object.getClass().equals(EnumValue.class)) {
+                    ((EnumValue)object).serialize(this);
+                } else {
+                    append((Enum)object);
+                }
             } else if (type == String.class) {
                 append(object.toString());
             } else {

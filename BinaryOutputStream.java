@@ -594,7 +594,11 @@ public class BinaryOutputStream {
         } else {
             assert(object != null && (object.getClass() == type));
             if (type.isEnum()) {
-                writeEnum((Enum)object);
+                if (object.getClass().equals(EnumValue.class)) {
+                    ((EnumValue)object).serialize(this);
+                } else {
+                    writeEnum((Enum)object);
+                }
             } else if (type == String.class) {
                 writeString(object.toString());
             } else {

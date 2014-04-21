@@ -811,6 +811,10 @@ public class BinaryInputStream {
                 throw new Exception("Unsupported primitive type");
             }
         } else if (type.isEnum()) {
+            if (deserializeTo != null && deserializeTo.getClass().equals(EnumValue.class)) {
+                ((EnumValue)deserializeTo).deserialize(this);
+                return deserializeTo;
+            }
             return readEnum((Class <? extends Enum >)type);
         } else if (type == String.class) {
             return readString();

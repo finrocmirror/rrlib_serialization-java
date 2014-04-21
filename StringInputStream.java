@@ -341,6 +341,10 @@ public class StringInputStream {
         } else {
             assert(deserializeTo != null && (deserializeTo.getClass() == type));
             if (type.isEnum()) {
+                if (deserializeTo != null && deserializeTo.getClass().equals(EnumValue.class)) {
+                    ((EnumValue)deserializeTo).deserialize(this);
+                    return deserializeTo;
+                }
                 return readEnum((Class<? extends Enum>)type);
             } else if (type == String.class) {
                 return readAll();
