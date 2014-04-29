@@ -65,6 +65,13 @@ public class MemoryBuffer implements BinarySerializable, ConstSource, Sink, Copy
         this(DEFAULT_SIZE);
     }
 
+    /**
+     * @param allocatDirect Allocate direct byte buffer? (in heap outside of JVM - mainly relevant for JNI code)
+     */
+    public MemoryBuffer(boolean allocateDirect) {
+        this(DEFAULT_SIZE, DEFAULT_RESIZE_FACTOR, allocateDirect);
+    }
+
     public MemoryBuffer(int size) {
         this(size, DEFAULT_RESIZE_FACTOR, true);
     }
