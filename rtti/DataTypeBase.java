@@ -55,106 +55,53 @@ public class DataTypeBase {
         UNKNOWN // Unknown data type in current process
     }
 
-    /**
-     * Maximum number of annotations
-     */
+    /** Relevant type traits across runtime environments */
+    public static final byte IS_BINARY_SERIALIZABLE = 1 << 0;
+    public static final byte IS_STRING_SERIALIZABLE = 1 << 1;
+    public static final byte IS_XML_SERIALIZABLE = 1 << 2;
+    public static final byte IS_ENUM = 1 << 3;
+
+    /** Null type */
+    public static DataTypeBase NULL_TYPE = new DataTypeBase(true);
+
+    /** Maximum number of annotations */
     private static final int MAX_ANNOTATIONS = 10;
 
     /** we need to avoid reallocation in order to make ArrayList thread safe. Therefore it is created with this capacity. */
     private final static int MAX_TYPES = 2000;
 
+    /** Type of data type */
+    protected Classification type;
 
-    /** Data type info */
-    static public class DataTypeInfoRaw {
+    /** Name of data type */
+    private String name;
 
-        /** Type of data type */
-        public Classification type;
+    /** Is this the default name? - then it may be changed */
+    protected boolean defaultName = true;
 
-        /** Name of data type */
-        public String name;
+    /** Data type uid */
+    private short uid = -1;
 
-        /** New info? */
-        boolean newInfo = true;
+    /** Java Class */
+    protected Class<?> javaClass;
 
-        /*! Is this the default name? - then it may be changed */
-        public boolean defaultName = true;
+    /** In case of list: type of elements */
+    protected DataTypeBase elementType;
 
-        /** Data type uid */
-        public short uid = -1;
+    /** In case of element: list type (std::vector<T>) */
+    protected DataTypeBase listType;
 
-        /** Java Class */
-        public Class<?> javaClass;
+    /** In case of element: shared pointer list type (std::vector<std::shared_ptr<T>>) */
+    protected DataTypeBase sharedPtrListType;
 
-        /** In case of list: type of elements */
-        public DataTypeBase elementType;
+    /** Annotations to data type */
+    private DataTypeAnnotation[] annotations = new DataTypeAnnotation[MAX_ANNOTATIONS];
 
-        /** In case of element: list type (std::vector<T>) */
-        public DataTypeBase listType;
+    /** Enum Constants - if this a enum type */
+    protected Object[] enumConstants;
 
-        /** In case of element: shared pointer list type (std::vector<std::shared_ptr<T>>) */
-        public DataTypeBase sharedPtrListType;
-
-        /** Annotations to data type */
-        public DataTypeAnnotation[] annotations = new DataTypeAnnotation[MAX_ANNOTATIONS];
-
-        /** Enum Constants - if this a enum type */
-        public Object[] enumConstants;
-
-        public DataTypeInfoRaw() {
-            defaultName = true;
-        }
-
-        /**
-         * Set name of data type
-         * (only valid if still default == not set before)
-         *
-         * @param newName New name of type
-         */
-        public void setName(String newName) {
-            if (!defaultName) {
-                assert(name.equals(newName)) : "Name already set";
-                return;
-            }
-
-            defaultName = false;
-            name = newName;
-        }
-
-        /**
-         * @return Instance of type casted to Object
-         */
-        public Object createInstance() {
-            return null;
-        }
-
-        /**
-         * @return Instance of Datatype as Generic object
-         */
-        public GenericObject createInstanceGeneric() {
-            return null;
-        }
-
-//        /**
-//         * Deep copy objects
-//         *
-//         * @param src Src object
-//         * @param dest Destination object
-//         * @param f Factory to use
-//         */
-//        public void deepCopy(Object src, Object dest, Factory f) {}
-    }
-
-//    /** Maximum number of types */
-//    public static final int MAX_TYPES = 2000;
-
-    /** Pointer to data type info (should not be copied every time for efficiency reasons) */
-    protected final DataTypeInfoRaw info;
-
-    /** List with all registered data types */
+    /** List with all registered data types (preallocated to avoid reallocations => concurrent use is possible) */
     private static ArrayList<DataTypeBase> types = new ArrayList<DataTypeBase>(MAX_TYPES);
-
-    /** Null type */
-    private static DataTypeBase NULL_TYPE = new DataTypeBase(null);
 
     /** Lookup for data type annotation index */
     private static final HashMap < Class<?>, Integer > annotationIndexLookup = new HashMap < Class<?>, Integer > ();
@@ -162,132 +109,91 @@ public class DataTypeBase {
     /** Last annotation index that was used */
     private static final AtomicInteger lastAnnotationIndex = new AtomicInteger(0);
 
-    /**
-     * @param name Name of data type
-     */
-    public DataTypeBase(DataTypeInfoRaw info) {
-        this.info = info;
+    /** Type traits of this type (bit vector - see constants above) */
+    protected byte typeTraits;
 
-        if (info != null && info.newInfo == true) {
-            synchronized (types) {
-                addType(info);
+    ///** Is this a remote type? */
+    //protected boolean remoteType = false;
+
+    public DataTypeBase() {
+        synchronized (types) {
+            uid = (short)types.size();
+            if (types.size() >= MAX_TYPES) {
+                Log.log(LogLevel.ERROR, this, "Maximum number of data types exceeded. Increase cMAX_TYPES.");
+                throw new RuntimeException("Maximum number of data types exceeded. Increase MAX_TYPES.");
             }
+            types.add(this);
+            Log.log(LogLevel.DEBUG_VERBOSE_1, this, "Adding data type " + getName());
         }
     }
 
-    /**
-     * Helper for constructor (needs to be called in synchronized context)
-     */
-    private void addType(DataTypeInfoRaw nfo) {
-        nfo.uid = (short)getTypes().size();
-        if (getTypes().size() >= MAX_TYPES) {
-            Log.log(LogLevel.ERROR, this, "Maximum number of data types exceeded. Increase cMAX_TYPES.");
-            throw new RuntimeException("Maximum number of data types exceeded. Increase MAX_TYPES.");
-        }
-        getTypes().add(this);
-        nfo.newInfo = false;
-        String msg = "Adding data type " + getName();
-        Log.log(LogLevel.DEBUG_VERBOSE_1, this, msg);
+    private DataTypeBase(boolean nulltype) {
+        this.name = "NULL";
+        this.uid = -1;
+        this.type = Classification.NULL;
     }
 
     /**
      * @return Name of data type
      */
     public String getName() {
-        String unknown = "NULL";
-        if (info != null) {
-            return info.name;
-        }
-        return unknown;
+        return name;
     }
 
     /**
      * @return Number of registered types
      */
     public static short getTypeCount() {
-        return (short)getTypes().size();
+        return (short)types.size();
     }
 
     /**
-     * @return uid of data type
+     * @return Uid of data type
      */
     public short getUid() {
-        if (info != null) {
-            return info.uid;
-        }
-        return -1;
+        return uid;
     }
 
     /**
      * @return return "Type" of data type (see enum)
      */
     public Classification getType() {
-        if (info != null) {
-            return info.type;
-        }
-        return Classification.NULL;
+        return type;
     }
 
     /**
      * @return In case of element: list type (std::vector<T>)
      */
     public DataTypeBase getListType() {
-        if (info != null) {
-            return info.listType;
-        }
-        return getNullType();
+        return listType;
     }
 
     /**
      * @return In case of list: type of elements
      */
     public DataTypeBase getElementType() {
-        if (info != null) {
-            return info.elementType;
-        }
-        return getNullType();
+        return elementType;
     }
 
     /**
      * @return In case of element: shared pointer list type (std::vector<std::shared_ptr<T>>)
      */
     public DataTypeBase getSharedPtrListType() {
-        if (info != null) {
-            return info.sharedPtrListType;
-        }
-        return getNullType();
+        return sharedPtrListType;
     }
 
     /**
      * @return Java Class of data type
      */
     public Class<?> getJavaClass() {
-        if (info != null) {
-            return info.javaClass;
-        } else {
-            return null;
-        }
+        return javaClass;
     }
 
-//    /**
-//     * Deep copy objects
-//     *
-//     * @param src Src object
-//     * @param dest Destination object
-//     * @param f Factory to use
-//     */
-//    public void deepCopy(Object src, Object dest, Factory f) {
-//        if (info == null) {
-//            return;
-//        }
-//        info.deepCopy(src, dest, f);
-//    }
-
     /**
-     * Helper method that safely provides static data type list
+     * @return Bit vector of type traits
      */
-    static private ArrayList<DataTypeBase> getTypes() {
-        return types;
+    public byte getTypeTraits() {
+        return typeTraits;
     }
 
     /**
@@ -298,7 +204,7 @@ public class DataTypeBase {
      */
     static public DataTypeBase findType(Class<?> c) {
         for (DataTypeBase db : types) {
-            if (db.info.javaClass == c) {
+            if (db.javaClass == c) {
                 return db;
             }
         }
@@ -307,31 +213,29 @@ public class DataTypeBase {
 
     /**
      * @param uid Data type uid
-     * @return Data type with specified uid
+     * @return Data type with specified uid (possibly NULL_TYPE); null if no data type with this uid exists
      */
     static public DataTypeBase getType(short uid) {
         if (uid == -1) {
-            return getNullType();
+            return NULL_TYPE;
         }
-        return getTypes().get(uid);
+        return types.get(uid);
     }
 
     /**
      * Lookup data type by name
      *
      * @param name Data Type name
-     * @return Data type with specified name (NULL if it could not be found)
+     * @return Data type with specified name (possibly NULL_TYPE); null if it could not be found
      */
     static public DataTypeBase findType(String name) {
-        boolean nulltype = name.equals("NULL");
-        if (nulltype) {
-            return getNullType();
+        if (name.equals(NULL_TYPE.name)) {
+            return NULL_TYPE;
         }
 
-        for (int i = 0; i < getTypes().size(); i++) {
-            DataTypeBase dt = getTypes().get(i);
-            boolean eq = name.equals(dt.getName());
-            if (eq) {
+        for (int i = 0; i < types.size(); i++) {
+            DataTypeBase dt = types.get(i);
+            if (name.equals(dt.getName())) {
                 return dt;
             }
         }
@@ -344,23 +248,17 @@ public class DataTypeBase {
     }
 
     /**
-     * @return Instance of Datatype T casted to void*
+     * @return Instance of Datatype T
      */
     public Object createInstance() {
-        if (info == null) {
-            return null;
-        }
-        return info.createInstance();
+        return null;
     }
 
     /**
      * @return Instance of Datatype as Generic object
      */
-    GenericObject createInstanceGeneric() {
-        if (info == null) {
-            return null;
-        }
-        return info.createInstanceGeneric();
+    protected GenericObject createInstanceGeneric() {
+        return null;
     }
 
     /**
@@ -404,20 +302,6 @@ public class DataTypeBase {
     }
 
     /**
-     * @return Nulltype
-     */
-    public static DataTypeBase getNullType() {
-        return NULL_TYPE;
-    }
-
-    /**
-     * @return DataTypeInfo object
-     */
-    public DataTypeInfoRaw getInfo() {
-        return info;
-    }
-
-    /**
      * Can object of this data type be converted to specified type?
      * (In C++ currently only returns true, when types are equal)
      *
@@ -429,7 +313,7 @@ public class DataTypeBase {
         if (dataType == this) {
             return true;
         }
-        if (info == null || dataType.info == null) {
+        if (type == Classification.NULL || dataType.type == Classification.NULL) {
             return false;
         }
         if (getType() == Classification.UNKNOWN || dataType.getType() == Classification.UNKNOWN) {
@@ -438,8 +322,8 @@ public class DataTypeBase {
         if (getType() == Classification.LIST && dataType.getType() == Classification.LIST) {
             return getElementType().isConvertibleTo(dataType.getElementType());
         }
-        if ((info.javaClass != null) && (dataType.info.javaClass != null)) {
-            return dataType.getInfo().javaClass.isAssignableFrom(info.javaClass);
+        if ((javaClass != null) && (dataType.javaClass != null)) {
+            return dataType.javaClass.isAssignableFrom(javaClass);
         }
         return false;
     }
@@ -450,27 +334,22 @@ public class DataTypeBase {
      * @param ann Annotation
      */
     public <T extends DataTypeAnnotation> void addAnnotation(T ann) {
-        if (info != null) {
-
-            assert(ann.annotatedType == null) : "Already used as annotation in other object. Not allowed (double deleteting etc.)";
-            ann.annotatedType = this;
-            int annIndex = -1;
-            synchronized (types) {
-                Integer i = annotationIndexLookup.get(ann.getClass());
-                if (i == null) {
-                    i = lastAnnotationIndex.incrementAndGet();
-                    annotationIndexLookup.put(ann.getClass(), i);
-                }
-                annIndex = i;
+        assert(ann.annotatedType == null) : "Already used as annotation in other object. Not allowed (double deleteting etc.)";
+        ann.annotatedType = this;
+        int annIndex = -1;
+        synchronized (types) {
+            Integer i = annotationIndexLookup.get(ann.getClass());
+            if (i == null) {
+                i = lastAnnotationIndex.incrementAndGet();
+                annotationIndexLookup.put(ann.getClass(), i);
             }
-
-            assert(annIndex > 0 && annIndex < MAX_ANNOTATIONS);
-            assert(info.annotations[annIndex] == null);
-
-            info.annotations[annIndex] = ann;
-        } else {
-            throw new RuntimeException("Nullptr");
+            annIndex = i;
         }
+
+        assert(annIndex > 0 && annIndex < MAX_ANNOTATIONS);
+        assert(annotations[annIndex] == null);
+
+        annotations[annIndex] = ann;
     }
 
     /**
@@ -481,11 +360,7 @@ public class DataTypeBase {
      */
     @SuppressWarnings("unchecked")
     public <T extends DataTypeAnnotation> T getAnnotation(Class<T> c) {
-        if (info != null) {
-            return (T)info.annotations[annotationIndexLookup.get(c)];
-        } else {
-            throw new RuntimeException("Nullptr");
-        }
+        return (T)annotations[annotationIndexLookup.get(c)];
     }
 
     public String toString() {
@@ -496,9 +371,27 @@ public class DataTypeBase {
      * \return If this is as enum type, returns enum constant names - otherwise NULL
      */
     public Object[] getEnumConstants() {
-        if (info != null) {
-            return info.enumConstants;
+        return enumConstants;
+    }
+
+    /**
+     * Set name of data type
+     * (only valid if still default == not set before)
+     *
+     * @param newName New name of type
+     */
+    protected void setName(String newName) {
+        if (!defaultName) {
+            assert(name.equals(newName)) : "Name already set";
+            return;
         }
-        return null;
+        defaultName = false;
+        name = newName;
+
+        for (int i = 0; i < types.size(); i++) {
+            if (i != uid && types.get(i).getName().equals(newName)) {
+                Log.log(LogLevel.WARNING, "Two types with the same name were registered: " + newName);
+            }
+        }
     }
 }

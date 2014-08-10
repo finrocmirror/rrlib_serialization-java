@@ -542,7 +542,7 @@ public class BinaryOutputStream {
      * @param type Data type to write/reference (using encoding specified in constructor)
      */
     public void writeType(DataTypeBase type) {
-        type = type == null ? DataTypeBase.getNullType() : type;
+        type = type == null ? DataTypeBase.NULL_TYPE : type;
 
         if (encoding == TypeEncoding.LocalUids) {
             writeShort(type.getUid());

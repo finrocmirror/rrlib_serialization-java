@@ -26,6 +26,7 @@ import java.util.ArrayList;
 
 import org.rrlib.serialization.EnumValue;
 import org.rrlib.serialization.PortDataListImpl;
+import org.rrlib.serialization.Serialization;
 
 /**
  * @author Max Reichardt
@@ -35,121 +36,91 @@ import org.rrlib.serialization.PortDataListImpl;
 
 public class DataType<T> extends DataTypeBase {
 
-    /**
-     * Data type info with factory functions
-     */
-    static class DataTypeInfo extends DataTypeInfoRaw {
-
-        DataTypeBase dataType;
-
-        public DataTypeInfo(Class<?> c) {
-            type = Classification.PLAIN;
-            javaClass = c;
-            name = c.getSimpleName();
-            if (c.isEnum()) {
-                ArrayList<String> constants = new ArrayList<String>();
-                for (Object o : c.getEnumConstants()) {
-                    constants.add(EnumValue.doNaturalFormatting(o.toString()));
-                }
-                enumConstants = constants.toArray();
-            }
-        }
-
-        public DataTypeInfo(DataTypeBase e, Classification type) {
-            this.type = type;
-            this.elementType = e;
-            if (type == Classification.LIST) {
-                name = "List<" + e.getName() + ">";
-            } else if (type == Classification.PTR_LIST) {
-                name = "List<" + e.getName() + "*>";
-            } else {
-                throw new RuntimeException("Unsupported");
-            }
-        }
-
-        public DataTypeInfo() {
-            throw new RuntimeException("do not call in Java");
-        }
-
-        @SuppressWarnings({ "rawtypes" })
-        @Override
-        public Object createInstance() {
-            Object result = null;
-            if (dataType.getType() == Classification.LIST || dataType.getType() == Classification.PTR_LIST) {
-                return new PortDataListImpl(dataType.getElementType());
-            }
-
-            try {
-                if (enumConstants != null) {
-                    return new EnumValue(dataType);
-                } else if (!(javaClass.isInterface() || Modifier.isAbstract(javaClass.getModifiers()))) {
-                    result = javaClass.newInstance();
-                } else { // whoops we have an interface - look for inner class that implements interface
-                    for (Class<?> cl : javaClass.getDeclaredClasses()) {
-                        if (javaClass.isAssignableFrom(cl)) {
-                            result = cl.newInstance();
-                            break;
-                        }
-                    }
-                    if (result == null) {
-                        throw new RuntimeException("Interface and no suitable inner class");
-                    }
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            return result;
-        }
-
-        @Override
-        public GenericObject createInstanceGeneric() {
-            return new GenericObject(createInstance(), dataType, null);
-        }
-
-//        @Override
-//        public void deepCopy(Object src, Object dest, Factory f) {
-//            RRLibSerializable s = (RRLibSerializable)src;
-//            RRLibSerializable d = (RRLibSerializable)dest;
-//
-//            Serialization.deepCopy(s, d, f);
-//        }
+    public DataType(Class<T> javaClass) {
+        this(javaClass, null);
     }
 
-    public DataType(Class<T> c) {
-        this(c, null);
-    }
-
-    public DataType(Class<?> c, String name) {
-        this(c, name, true);
+    public DataType(Class<?> javaClass, String name) {
+        this(javaClass, name, true);
     }
 
     @SuppressWarnings("rawtypes")
-    public DataType(Class<?> c, String name, boolean createListTypes) {
-        super(getDataTypeInfo(c));
-        if (name != null) {
-            info.setName(name);
+    public DataType(Class<?> javaClass, String name, boolean createListTypes) {
+        setName(name != null ? name : javaClass.getSimpleName());
+        type = Classification.PLAIN;
+        this.javaClass = javaClass;
+        typeTraits = (byte)((Serialization.isBinarySerializable(javaClass) ? IS_BINARY_SERIALIZABLE : 0) |
+                            (Serialization.isStringSerializable(javaClass) ? IS_STRING_SERIALIZABLE : 0) | (Serialization.isXmlSerializable(javaClass) ? IS_XML_SERIALIZABLE : 0));
+        if (javaClass.isEnum()) {
+            ArrayList<String> constants = new ArrayList<String>();
+            for (Object o : javaClass.getEnumConstants()) {
+                constants.add(EnumValue.doNaturalFormatting(o.toString()));
+            }
+            enumConstants = constants.toArray();
+            typeTraits |= IS_ENUM;
         }
-        ((DataTypeInfo)info).dataType = this;
 
-        if (createListTypes && ((DataTypeInfo)info).type == Classification.PLAIN && info.listType == null) {
-            info.listType = new DataType(this, Classification.LIST);
-            info.sharedPtrListType = new DataType(this, Classification.PTR_LIST);
+        if (createListTypes && listType == null) {
+            listType = new DataType(this, Classification.LIST);
+            //sharedPtrListType = new DataType(this, Classification.PTR_LIST);
         }
+    }
+
+    @SuppressWarnings("rawtypes")
+    public DataType(Class<?> javaClass, Class<?> dedicatedListType, String name) {
+        this(javaClass, name, false);
+        listType = new DataType(this, Classification.LIST);
+        listType.javaClass = dedicatedListType;
     }
 
     /**
      * Constructor for list types
      */
-    private DataType(DataTypeBase e, Classification t) {
-        super(new DataTypeInfo(e, t));
-        ((DataTypeInfo)info).dataType = this;
+    private DataType(DataTypeBase e, Classification type) {
+        this.type = type;
+        this.elementType = e;
+        this.typeTraits = (byte)(e.typeTraits & (IS_BINARY_SERIALIZABLE | IS_STRING_SERIALIZABLE | IS_XML_SERIALIZABLE));
+        if (type == Classification.LIST) {
+            setName("List<" + e.getName() + ">");
+        } else if (type == Classification.PTR_LIST) {
+            setName("List<" + e.getName() + "*>");
+        } else {
+            throw new RuntimeException("Unsupported");
+        }
     }
 
-    private static DataTypeInfoRaw getDataTypeInfo(Class<?> c) {
-        DataTypeBase dt = findType(c);
-        if (dt != null) {
-            return dt.info;
+    @SuppressWarnings({ "rawtypes" })
+    @Override
+    public Object createInstance() {
+        Object result = null;
+        if (javaClass == null && (getType() == Classification.LIST || getType() == Classification.PTR_LIST)) {
+            return new PortDataListImpl(getElementType());
         }
-        return new DataTypeInfo(c);
+
+        try {
+            if (enumConstants != null) {
+                return new EnumValue(this);
+            } else if (!(javaClass.isInterface() || Modifier.isAbstract(javaClass.getModifiers()))) {
+                result = javaClass.newInstance();
+            } else { // whoops we have an interface - look for inner class that implements interface
+                for (Class<?> cl : javaClass.getDeclaredClasses()) {
+                    if (javaClass.isAssignableFrom(cl)) {
+                        result = cl.newInstance();
+                        break;
+                    }
+                }
+                if (result == null) {
+                    throw new RuntimeException("Interface and no suitable inner class");
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return result;
+    }
+
+    @Override
+    public GenericObject createInstanceGeneric() {
+        return new GenericObject(createInstance(), this, null);
     }
 }
