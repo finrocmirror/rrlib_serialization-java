@@ -36,6 +36,7 @@ import org.rrlib.logging.LogLevel;
 import org.rrlib.serialization.rtti.Copyable;
 import org.rrlib.serialization.rtti.Factory;
 import org.rrlib.serialization.rtti.GenericObject;
+import org.rrlib.serialization.rtti.Immutable;
 import org.rrlib.xml.XMLNode;
 
 /**
@@ -343,7 +344,7 @@ public class Serialization {
             return null;
         }
         Class<?> type = src.getClass();
-        boolean immutable = type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type) || String.class.equals(type);
+        boolean immutable = type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type) || String.class.equals(type) || Immutable.class.isAssignableFrom(type);
         immutable &= (!Copyable.class.isAssignableFrom(type));
         if (immutable) {
             return src;

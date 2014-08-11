@@ -46,7 +46,7 @@ public class DataType<T> extends DataTypeBase {
 
     @SuppressWarnings("rawtypes")
     public DataType(Class<?> javaClass, String name, boolean createListTypes) {
-        setName(name != null ? name : javaClass.getSimpleName());
+        super(name != null ? name : javaClass.getSimpleName());
         type = Classification.PLAIN;
         this.javaClass = javaClass;
         typeTraits = (byte)((Serialization.isBinarySerializable(javaClass) ? IS_BINARY_SERIALIZABLE : 0) |
@@ -77,16 +77,10 @@ public class DataType<T> extends DataTypeBase {
      * Constructor for list types
      */
     private DataType(DataTypeBase e, Classification type) {
+        super(type == Classification.LIST ? ("List<" + e.getName() + ">") : ("List<" + e.getName() + "*>"));
         this.type = type;
         this.elementType = e;
         this.typeTraits = (byte)(e.typeTraits & (IS_BINARY_SERIALIZABLE | IS_STRING_SERIALIZABLE | IS_XML_SERIALIZABLE));
-        if (type == Classification.LIST) {
-            setName("List<" + e.getName() + ">");
-        } else if (type == Classification.PTR_LIST) {
-            setName("List<" + e.getName() + "*>");
-        } else {
-            throw new RuntimeException("Unsupported");
-        }
     }
 
     @SuppressWarnings({ "rawtypes" })

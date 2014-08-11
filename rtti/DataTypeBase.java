@@ -35,13 +35,14 @@ import org.rrlib.logging.LogLevel;
  * Untyped base class for all data types.
  *
  * Assigns unique type-id to each data type.
- * Can be used as factory for data types (necessary for deserializing)
+ * Can be used as factory for data types (necessary for deserializing
  * vectors containing pointers).
  *
  * A instance of DataType<T> must be created for each type T
  * this mechanism should work with.
  *
- * This class is passed by value
+ * To avoid that the list of types is modified while accessing it,
+ * synchronize on 'DataTypeBase.class'.
  */
 public class DataTypeBase {
 
@@ -74,10 +75,7 @@ public class DataTypeBase {
     protected Classification type;
 
     /** Name of data type */
-    private String name;
-
-    /** Is this the default name? - then it may be changed */
-    protected boolean defaultName = true;
+    private final String name;
 
     /** Data type uid */
     private short uid = -1;
@@ -115,13 +113,20 @@ public class DataTypeBase {
     ///** Is this a remote type? */
     //protected boolean remoteType = false;
 
-    public DataTypeBase() {
-        synchronized (types) {
+    public DataTypeBase(String name) {
+        synchronized (DataTypeBase.class) {
             uid = (short)types.size();
+            this.name = name;
+            for (DataTypeBase type : types) {
+                if (type.getName().equals(name)) {
+                    Log.log(LogLevel.WARNING, "Two types with the same name were registered: " + name);
+                }
+            }
             if (types.size() >= MAX_TYPES) {
                 Log.log(LogLevel.ERROR, this, "Maximum number of data types exceeded. Increase cMAX_TYPES.");
                 throw new RuntimeException("Maximum number of data types exceeded. Increase MAX_TYPES.");
             }
+
             types.add(this);
             Log.log(LogLevel.DEBUG_VERBOSE_1, this, "Adding data type " + getName());
         }
@@ -337,7 +342,7 @@ public class DataTypeBase {
         assert(ann.annotatedType == null) : "Already used as annotation in other object. Not allowed (double deleteting etc.)";
         ann.annotatedType = this;
         int annIndex = -1;
-        synchronized (types) {
+        synchronized (DataTypeBase.class) {
             Integer i = annotationIndexLookup.get(ann.getClass());
             if (i == null) {
                 i = lastAnnotationIndex.incrementAndGet();
@@ -372,26 +377,5 @@ public class DataTypeBase {
      */
     public Object[] getEnumConstants() {
         return enumConstants;
-    }
-
-    /**
-     * Set name of data type
-     * (only valid if still default == not set before)
-     *
-     * @param newName New name of type
-     */
-    protected void setName(String newName) {
-        if (!defaultName) {
-            assert(name.equals(newName)) : "Name already set";
-            return;
-        }
-        defaultName = false;
-        name = newName;
-
-        for (int i = 0; i < types.size(); i++) {
-            if (i != uid && types.get(i).getName().equals(newName)) {
-                Log.log(LogLevel.WARNING, "Two types with the same name were registered: " + newName);
-            }
-        }
     }
 }
