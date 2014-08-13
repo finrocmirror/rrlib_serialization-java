@@ -202,15 +202,25 @@ public class DataTypeBase {
     }
 
     /**
-     * Lookup data type for class c
+     * Lookup data type for Java class c.
+     * Note that this lookup can be ambiguous (e.g. for remote enums).
+     * Therefore, an expected type can be specified in order to resolve these cases.
      *
-     * @param c Class
+     * @param c Java class
+     * @param expected Expected type
      * @return Data type object - null if there's none
      */
-    static public DataTypeBase findType(Class<?> c) {
-        for (DataTypeBase db : types) {
-            if (db.javaClass == c) {
-                return db;
+    static public DataTypeBase findType(Class<?> c, DataTypeBase expected) {
+        if (c == null) {
+            return null;
+        }
+        if (expected != null && c.equals(expected.javaClass)) {
+            return expected;
+        }
+        for (int i = 0; i < types.size(); i++) {
+            DataTypeBase type = types.get(i);
+            if (type.javaClass == c) {
+                return type;
             }
         }
         return null;

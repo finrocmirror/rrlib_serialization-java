@@ -63,7 +63,7 @@ public class PortDataListImpl<T extends BinarySerializable> implements PortDataL
                     os.writeType(DataTypeBase.NULL_TYPE);
                     continue;
                 }
-                os.writeType(DataTypeBase.findType(wrapped.get(i).getClass()));
+                os.writeType(DataTypeBase.findType(wrapped.get(i).getClass(), elementType));
             }
             wrapped.get(i).serialize(os);
         }
