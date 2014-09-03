@@ -36,8 +36,8 @@ public class EnumValue implements BinarySerializable, StringSerializable, Copyab
     /** Data Type of this enum value */
     private DataTypeBase type;
 
-    /** Current wrapped enum value */
-    private int value;
+    /** Current wrapped enum value (index of enum) */
+    private int enumIndex;
 
     public EnumValue() {}
 
@@ -49,34 +49,44 @@ public class EnumValue implements BinarySerializable, StringSerializable, Copyab
 
     @Override
     public void serialize(BinaryOutputStream os) {
-        os.writeEnum(value, type.getEnumConstants());
+        os.writeEnum(enumIndex, type.getEnumConstants());
     }
 
     @Override
     public void deserialize(BinaryInputStream is) {
-        value = is.readEnum(type.getEnumConstants());
+        enumIndex = is.readEnum(type.getEnumConstants());
     }
 
     @Override
     public void serialize(StringOutputStream os) {
-        os.append(type.getEnumConstants()[value].toString()).append(" (").append(value).append(")");
+        os.append(toString());
     }
 
     @Override
     public void deserialize(StringInputStream is) throws Exception {
-        value = is.readEnum(type.getEnumConstants());
+        enumIndex = is.readEnum(type.getEnumConstants(), type.getNonStandardEnumValues());
     }
 
     /**
      * @return Enum value's ordinal
      */
-    public int getOrdinal() {
-        return value;
+    public long getOrdinal() {
+        if (type.getNonStandardEnumValues() != null) {
+            return type.getNonStandardEnumValues()[enumIndex];
+        }
+        return enumIndex;
+    }
+
+    /**
+     * @return Enum value index
+     */
+    public int getIndex() {
+        return enumIndex;
     }
 
     @Override
     public void copyFrom(EnumValue source) {
-        value = source.value;
+        enumIndex = source.enumIndex;
         type = source.type;
     }
 
@@ -98,14 +108,33 @@ public class EnumValue implements BinarySerializable, StringSerializable, Copyab
 
     @Override
     public Number getNumericRepresentation() {
-        return value;
+        return getOrdinal();
     }
 
     /**
      * @param ordinal New ordinal value
      */
-    public void set(int ordinal) {
-        value = ordinal;
+    public void setOrdinal(long ordinal) throws Exception {
+        if (type.getNonStandardEnumValues() != null) {
+            for (int i = 0; i < type.getNonStandardEnumValues().length; i++) {
+                if (type.getNonStandardEnumValues()[i] == ordinal) {
+                    enumIndex = i;
+                    return;
+                }
+            }
+            throw new Exception("No enum constant found for value " + ordinal);
+        }
+        enumIndex = (int)ordinal;
+    }
+
+    /**
+     * @param ordinal New enum index
+     */
+    public void setIndex(int index) {
+        if (index > type.getEnumConstants().length) {
+            throw new IndexOutOfBoundsException("Invalid index " + index);
+        }
+        enumIndex = index;
     }
 
     /**
@@ -119,12 +148,12 @@ public class EnumValue implements BinarySerializable, StringSerializable, Copyab
     public boolean equals(Object other) {
         if (other instanceof EnumValue) {
             EnumValue o = (EnumValue)other;
-            return value == o.value && type == o.type;
+            return enumIndex == o.enumIndex && type == o.type;
         }
         return false;
     }
 
     public String toString() {
-        return Serialization.serialize(this);
+        return type.getEnumConstants()[enumIndex].toString() + " (" + getOrdinal() + ")";
     }
 }

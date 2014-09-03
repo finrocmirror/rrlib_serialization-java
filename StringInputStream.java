@@ -232,14 +232,15 @@ public class StringInputStream {
      */
     @SuppressWarnings({ "rawtypes" })
     public <E extends Enum> E readEnum(Class<E> eclass) {
-        return eclass.getEnumConstants()[readEnum(eclass.getEnumConstants())];
+        return eclass.getEnumConstants()[readEnum(eclass.getEnumConstants(), null)];
     }
 
     /**
      * @param enumConstants Enum constants (only their toString() method is used)
-     * @return Enum value
+     * @param enumValue Non-standard enum value - otherwise null
+     * @return Enum value (index in case of non-standard values)
      */
-    public int readEnum(Object[] enumConstants) {
+    public int readEnum(Object[] enumConstants, long[] enumValues) {
         // parse input
         String enumString = readWhile("", DIGIT | LETTER | WHITESPACE, true).trim();
         int c1 = read();
@@ -271,12 +272,26 @@ public class StringInputStream {
         if (numString.length() == 0) {
             throw new RuntimeException("No Number String specified");
         }
-        int n = Integer.parseInt(numString);
-        if (n >= enumConstants.length) {
-            Log.log(LogLevel.ERROR, this, "Number " + n + " out of range for enum (" + enumConstants.length + ")");
+        long num = Long.parseLong(numString);
+        if (enumValues != null) {
+            boolean found = false;
+            for (int i = 0; i < enumValues.length; i++) {
+                if (num == enumValues[i]) {
+                    found = true;
+                    num = i;
+                    break;
+                }
+            }
+            if (!found) {
+                throw new RuntimeException("Number not a valid enum constant");
+            }
+        }
+
+        if (num >= enumConstants.length) {
+            Log.log(LogLevel.ERROR, this, "Number " + num + " out of range for enum (" + enumConstants.length + ")");
             throw new RuntimeException("Number out of range");
         }
-        return n;
+        return (int)num;
     }
 
     /**
