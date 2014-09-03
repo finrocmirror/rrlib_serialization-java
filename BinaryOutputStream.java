@@ -433,14 +433,14 @@ public class BinaryOutputStream {
      */
     public void writeEnum(int value, Object[] constants) {
         if (constants.length == 0) {
-            assert(value < 0x7FFFFFFF) : "What?";
+            assert(value < 0x7FFFFFFF);
             writeInt(value);
         } else if (constants.length <= 0x100) {
             writeByte((byte) value);
-        } else if (constants.length <= 0x1000) {
+        } else if (constants.length <= 0x10000) {
             writeShort((short) value);
         } else {
-            assert(constants.length < 0x7FFFFFFF) : "What?";
+            assert(constants.length < 0x7FFFFFFF);
             writeInt(value);
         }
     }

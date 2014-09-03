@@ -636,10 +636,10 @@ public class BinaryInputStream {
             return readInt();
         } else if (strings.length <= 0x100) {
             return readByte();
-        } else if (strings.length <= 0x1000) {
+        } else if (strings.length <= 0x10000) {
             return readShort();
         } else {
-            assert(strings.length < 0x7FFFFFFF) : "What?";
+            assert(strings.length < 0x7FFFFFFF);
             return readInt();
         }
     }

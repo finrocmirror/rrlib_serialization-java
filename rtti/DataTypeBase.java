@@ -98,6 +98,9 @@ public class DataTypeBase {
     /** Enum Constants - if this a enum type */
     protected Object[] enumConstants;
 
+    /** Array with enum values - if this is a remote enum type with non-standard values */
+    protected long[] enumValues;
+
     /** List with all registered data types (preallocated to avoid reallocations => concurrent use is possible) */
     private static ArrayList<DataTypeBase> types = new ArrayList<DataTypeBase>(MAX_TYPES);
 
@@ -383,9 +386,15 @@ public class DataTypeBase {
     }
 
     /**
-     * \return If this is as enum type, returns enum constant names - otherwise NULL
+     * @return If this is as enum type, returns enum constant names - otherwise NULL
      */
     public Object[] getEnumConstants() {
         return enumConstants;
+    }
+    /**
+     * @return Array with enum values - if this is a remote enum type with non-standard values
+     */
+    public long[] getNonStandardEnumValues() {
+        return enumValues;
     }
 }
