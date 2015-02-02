@@ -24,6 +24,9 @@ package org.rrlib.serialization;
 import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 
+import org.rrlib.logging.Log;
+import org.rrlib.serialization.compression.Compressible;
+import org.rrlib.serialization.compression.DataCompressor;
 import org.rrlib.serialization.rtti.DataTypeBase;
 import org.rrlib.xml.XMLDocument;
 import org.rrlib.xml.XMLNode;
@@ -853,6 +856,23 @@ public class BinaryInputStream {
                 sis.close();
             }
             return deserializeTo;
+        } else if (encoding == Serialization.DataEncoding.BINARY_COMPRESSED) {
+            String format = this.readString();
+            if (format.length() == 0) {
+                return readObject(deserializeTo, type);
+            } else {
+                int size = this.readInt();
+                if (deserializeTo == null) {
+                    deserializeTo = type.newInstance();
+                }
+                if (deserializeTo instanceof Compressible) {
+                    ((Compressible)deserializeTo).decompressNext(this, format, size);
+                } else {
+                    DataCompressor compressor = new DataCompressor(type, format);
+                    compressor.decompressNext(this, deserializeTo, size);
+                }
+                return deserializeTo;
+            }
         } else {
             assert(encoding == Serialization.DataEncoding.XML);
             XMLDocument d = new XMLDocument(new InputSource(new StringReader(readString())), false);

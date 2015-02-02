@@ -619,6 +619,10 @@ public class BinaryOutputStream {
             writeObject(object, type);
         } else if (encoding == Serialization.DataEncoding.STRING) {
             writeString(Serialization.serialize(object));
+        } else if (encoding == Serialization.DataEncoding.BINARY_COMPRESSED) {
+            // TODO actually compress data (currently not needed)
+            writeString("");
+            writeObject(object, type);
         } else {
             assert(encoding == Serialization.DataEncoding.XML);
             XMLDocument d = new XMLDocument();
