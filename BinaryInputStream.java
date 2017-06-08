@@ -24,10 +24,8 @@ package org.rrlib.serialization;
 import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 
-import org.rrlib.logging.Log;
 import org.rrlib.serialization.compression.Compressible;
 import org.rrlib.serialization.compression.DataCompressor;
-import org.rrlib.serialization.rtti.DataTypeBase;
 import org.rrlib.xml.XMLDocument;
 import org.rrlib.xml.XMLNode;
 import org.xml.sax.InputSource;
@@ -56,9 +54,6 @@ public class BinaryInputStream {
     /** Manager that handles, where the data blocks come from etc. */
     protected Source source = null;
 
-    /** Manager that handles, where the data blocks come from etc. */
-    protected ConstSource constSource = null;
-
     /** Current absolute buffer read position of buffer start - relevant when using Source; 64bit value, because we might transfer several GB over a stream */
     protected long absoluteReadPos = 0;
 
@@ -74,71 +69,46 @@ public class BinaryInputStream {
     /** timeout for blocking calls (<= 0 when disabled) */
     protected int timeout = -1;
 
-    /** Data type encoding */
-    public enum TypeEncoding {
-        LocalUids, // use local uids. fastest. Can, however, only be used with streams encoded by this runtime.
-        Names, // use names. Can be decoded in any runtime that knows types.
-        Custom // use custom type codec
-    }
-
-    /** Data type encoding that is used */
-    protected TypeEncoding encoding;
-
-    /** Custom type encoder */
-    protected TypeEncoder customEncoder;
-
     /** ByteArrayInputStream helper for reading strings in Java */
     protected ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-    public BinaryInputStream() {
-        this(TypeEncoding.LocalUids);
-    }
+    /** Info on source that created data currently read (at least the included revision is required for deserialization) */
+    private SerializationInfo serializationSource;
 
-    public BinaryInputStream(ConstSource source_) {
-        this(source_, TypeEncoding.LocalUids);
-    }
+    /** Replicated remote registers */
+    PublishedRegisters.RemoteRegister[] remoteRegisters;
 
-    public BinaryInputStream(TypeEncoding encoding) {
-        boundaryBuffer.buffer = boundaryBufferBackend;
-        this.encoding = encoding;
-    }
 
-    public BinaryInputStream(TypeEncoder encoder) {
-        boundaryBuffer.buffer = boundaryBufferBackend;
-        customEncoder = encoder;
-        encoding = TypeEncoding.Custom;
-    }
-
-    public BinaryInputStream(ConstSource source_, TypeEncoding encoding) {
-        boundaryBuffer.buffer = boundaryBufferBackend;
-        this.encoding = encoding;
-        reset(source_);
-    }
-
-    public BinaryInputStream(ConstSource source_, TypeEncoder encoder) {
-        boundaryBuffer.buffer = boundaryBufferBackend;
-        customEncoder = encoder;
-        encoding = TypeEncoding.Custom;
-        reset(source_);
-    }
-
+    public BinaryInputStream() {}
 
     /**
-     * @param source Source that handles, where the data blocks come from etc.
+     * @param source Source to use
      */
-    public BinaryInputStream(Source source_) {
-        boundaryBuffer.buffer = boundaryBufferBackend;
-        reset(source_);
+    public BinaryInputStream(Source source) {
+        this(source, new SerializationInfo());
     }
 
     /**
-     * @param source Source that handles, where the data blocks come from etc.
+     * @param source Source to use
+     * @param sourceInfo Info on source that created data currently read (at least the included revision is required for deserialization)
      */
-    public BinaryInputStream(Source source_, TypeEncoder encoder) {
-        boundaryBuffer.buffer = boundaryBufferBackend;
-        customEncoder = encoder;
-        encoding = TypeEncoding.Custom;
-        reset(source_);
+    public BinaryInputStream(Source source, SerializationInfo sourceInfo) {
+        reset(source, sourceInfo);
+    }
+
+    /**
+     * @param source Source to use
+     * @param sharedSerializationInfoFrom Serialization info (SerializationInfo and published registers) is taken from and shared with this input stream
+     */
+    public BinaryInputStream(Source source, BinaryInputStream sharedSerializationInfoFrom) {
+        reset(source, sharedSerializationInfoFrom);
+    }
+
+    /**
+     * @return Info on source that created data currently read (at least the included revision is required for deserialization)
+     */
+    public SerializationInfo getSourceInfo() {
+        return serializationSource;
     }
 
     /**
@@ -154,15 +124,9 @@ public class BinaryInputStream {
      * Resets buffer for reading - may not be supported by all managers
      */
     public void reset() {
-        if (source != null) {
-            source.reset(this, sourceBuffer);
-            directReadSupport = source.directReadSupport();
-            closed = false;
-        } else if (constSource != null) {
-            constSource.reset(this, sourceBuffer);
-            directReadSupport = constSource.directReadSupport();
-            closed = false;
-        }
+        source.reset(this, sourceBuffer);
+        directReadSupport = source.directReadSupport();
+        closed = false;
         curBuffer = sourceBuffer;
         absoluteReadPos = 0;
     }
@@ -173,11 +137,8 @@ public class BinaryInputStream {
      *
      * @param source New Source
      */
-    public void reset(ConstSource source) {
-        close();
-        this.source = null;
-        this.constSource = source;
-        reset();
+    public void reset(Source source) {
+        reset(source, new SerializationInfo());
     }
 
     /**
@@ -185,12 +146,70 @@ public class BinaryInputStream {
      * Current source will be closed.
      *
      * @param source New Source
+     * @param sourceInfo Info on source that created data currently read (at least the included revision is required for deserialization)
      */
-    public void reset(Source source) {
+    public void reset(Source source, SerializationInfo sourceInfo) {
         close();
         this.source = source;
-        this.constSource = null;
+        setSerializationSource(sourceInfo);
         reset();
+    }
+
+    /**
+     * Sets shared serialization source of this stream without changing sink
+     *
+     * @param sourceInfo Info on source that created data currently read (at least the included revision is required for deserialization)
+     */
+    public void setSerializationSource(SerializationInfo sourceInfo) {
+        this.serializationSource = sourceInfo;
+        if (sourceInfo.hasPublishedRegisters()) {
+            this.remoteRegisters = new PublishedRegisters.RemoteRegister[SerializationInfo.MAX_PUBLISHED_REGISTERS];
+            for (int i = 0; i < SerializationInfo.MAX_PUBLISHED_REGISTERS; i++) {
+                if (sourceInfo.getRegisterEntryEncoding(i) == SerializationInfo.RegisterEntryEncoding.PUBLISH_REGISTER_ON_CHANGE || sourceInfo.getRegisterEntryEncoding(i) == SerializationInfo.RegisterEntryEncoding.PUBLISH_REGISTER_ON_DEMAND) {
+                    this.remoteRegisters[i] = PublishedRegisters.get(i).createRemoteRegister();
+                }
+            }
+
+        } else {
+            this.remoteRegisters = null;
+        }
+    }
+
+
+    /**
+     * Use this object with different source.
+     * Current source will be closed.
+     *
+     * @param source New Source
+     * @param sharedSerializationInfoFrom Serialization info (SerializationInfo and published registers) is taken from and shared with this input stream
+     */
+    public void reset(Source source, BinaryInputStream sharedSerializationInfoFrom) {
+        close();
+        this.source = source;
+        this.serializationSource = sharedSerializationInfoFrom.serializationSource;
+        this.remoteRegisters = sharedSerializationInfoFrom.remoteRegisters;
+        reset();
+    }
+
+    /**
+     * Sets shared serialization info of this stream without changing source
+     *
+     * @param sharedSerializationInfoFrom Serialization info (SerializationInfo and published registers) is taken from and shared with this input stream
+     */
+    public void setSharedSerializationInfo(BinaryInputStream sharedSerializationInfoFrom) {
+        this.serializationSource = sharedSerializationInfoFrom.serializationSource;
+        this.remoteRegisters = sharedSerializationInfoFrom.remoteRegisters;
+    }
+
+    /**
+     * Sets shared serialization info of this stream without changing source
+     *
+     * @param sourceInfo Info on source that created data currently read
+     * @param remoteRegistersFrom Remote registers from this stream are used
+     */
+    public void setSharedSerializationInfo(SerializationInfo sourceInfo, BinaryInputStream remoteRegistersFrom) {
+        this.serializationSource = sourceInfo;
+        this.remoteRegisters = remoteRegistersFrom.remoteRegisters;
     }
 
     /**
@@ -200,8 +219,6 @@ public class BinaryInputStream {
         if (!closed) {
             if (source != null) {
                 source.close(this, sourceBuffer);
-            } else if (constSource != null) {
-                constSource.close(this, sourceBuffer);
             }
         }
         closed = true;
@@ -369,7 +386,7 @@ public class BinaryInputStream {
      */
     protected void fetchNextBytes(int minRequired2) {
         assert(minRequired2 <= 8);
-        assert(source != null || constSource != null);
+        assert(source != null);
 
         // are we finished using boundary buffer?
         if (usingBoundaryBuffer() && boundaryBuffer.position >= 7) {
@@ -396,7 +413,7 @@ public class BinaryInputStream {
         if (timeout > 0) {
             int initialSleep = 20; // timeout-related
             int slept = 0; // timeout-related
-            while (timeout > 0 && (!(source != null ? source.moreDataAvailable(this, sourceBuffer) : constSource.moreDataAvailable(this, sourceBuffer)))) {
+            while (timeout > 0 && (!source.moreDataAvailable(this, sourceBuffer))) {
                 initialSleep *= 2;
                 try {
                     Thread.sleep(initialSleep);
@@ -409,11 +426,7 @@ public class BinaryInputStream {
         }
 
         // read next block
-        if (source != null) {
-            source.read(this, sourceBuffer, minRequired2);
-        } else {
-            constSource.read(this, sourceBuffer, minRequired2);
-        }
+        source.read(this, sourceBuffer, minRequired2);
         assert(sourceBuffer.remaining() >= minRequired2);
         assert(sourceBuffer.position >= 0);
 
@@ -569,6 +582,25 @@ public class BinaryInputStream {
     }
 
     /**
+     * @return sizeOf Size of integer in byte (1, 2, 4, or 8)
+     */
+    public long readInt(int sizeOf) {
+        switch (sizeOf) {
+        case 1:
+            return readByte();
+        case 2:
+            return readShort();
+        case 4:
+            return readInt();
+        case 8:
+            return readLong();
+        default:
+            throw new RuntimeException("Invalid size");
+        }
+    }
+
+
+    /**Info on source that created data currently read (at least the included revision is required for deserialization)
      * @return String/Line from stream (ends either at line delimiter or 0-character)
      */
     public String readLine() {
@@ -701,7 +733,7 @@ public class BinaryInputStream {
             return true;
         }
         //System.out.println("Not here");
-        return source != null ? source.moreDataAvailable(this, sourceBuffer) : constSource.moreDataAvailable(this, sourceBuffer);
+        return source.moreDataAvailable(this, sourceBuffer);
     }
 
     /**
@@ -723,19 +755,6 @@ public class BinaryInputStream {
      */
     public void setTimeout(int timeout) {
         this.timeout = timeout;
-    }
-
-    /**
-     * @return Reads type from stream
-     */
-    public DataTypeBase readType() {
-        if (encoding == TypeEncoding.LocalUids) {
-            return DataTypeBase.getType(readShort());
-        } else if (encoding == TypeEncoding.Names) {
-            return DataTypeBase.findType(readString());
-        } else {
-            return customEncoder.readType(this);
-        }
     }
 
 //    /**
@@ -881,5 +900,43 @@ public class BinaryInputStream {
         }
     }
 
+    /**
+     * @param registerUid Uid of register to serialize remote entry of
+     * @return Remote register entry of specified type
+     */
+    public PublishedRegisters.RemoteEntryBase<?> readRegisterEntry(int registerUid) throws Exception {
+        if (remoteRegisters == null) {
+            throw new Exception("BinaryInputStream: No shared serialization info set");
+        }
+        Register<?> localRegister = PublishedRegisters.get(registerUid).register;
+        int handle = (int)readInt(localRegister.getSizeOfHandle());
+        if (handle == -2) {
+            readRegisterUpdates();
+            handle = (int)readInt(localRegister.getSizeOfHandle());
+        }
+        if (handle == -1) {
+            return PublishedRegisters.getMinusOneElement();
+        }
+        return remoteRegisters[registerUid].get(handle);
+    }
 
+    /**
+     * @return Reads register updates
+     */
+    void readRegisterUpdates() throws Exception {
+
+        // Read register updates
+        if (getSourceInfo().getRevision() == 0) {
+            remoteRegisters[0].deserializeEntries(this);
+        } else {
+            byte uid = readByte();
+            while (uid != -1) {
+                if (uid >= remoteRegisters.length || uid < 0) {
+                    throw new RuntimeException("Invalid register uid " + uid);
+                }
+                remoteRegisters[uid].deserializeEntries(this);
+                uid = readByte();
+            }
+        }
+    }
 }

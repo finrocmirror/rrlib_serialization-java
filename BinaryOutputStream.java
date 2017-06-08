@@ -21,7 +21,8 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization;
 
-import org.rrlib.serialization.rtti.DataTypeBase;
+import java.util.ArrayList;
+
 import org.rrlib.xml.XMLDocument;
 import org.rrlib.xml.XMLNode;
 
@@ -81,56 +82,57 @@ public class BinaryOutputStream {
     /** Is direct write support available with this sink? */
     private boolean directWriteSupport = false;
 
-    /** Data type encoding */
-    public enum TypeEncoding {
-        LocalUids, // use local uids. fastest. Can, however, only be decoded in this runtime.
-        Names, // use names. Can be decoded in any runtime that knows types.
-        Custom // use custom type codec
+    /** Info on target that serialization is created for */
+    private SerializationInfo serializationTarget;
+
+    /** Info on a single published registers */
+    class PublishedRegisterStatus {
+
+        /** Contains number of entries from register that were already written to stream */
+        final int[] elementsWritten = new int[SerializationInfo.MAX_PUBLISHED_REGISTERS];
+
+        /** Published entries of register that are updates on change */
+        int publishedOnChangedEntries;
+
+        /** Registers that are updated on change */
+        ArrayList<Register<?>> onChangeRegisters = new ArrayList<Register<?>>();
     }
 
-    /** Data type encoding that is used */
-    private TypeEncoding encoding;
+    /** Info on published registers - possibly null */
+    PublishedRegisterStatus publishedRegisterStatus;
 
-    /** Custom type encoder */
-    private TypeEncoder customEncoder;
 
-    public BinaryOutputStream() {
-        this(TypeEncoding.LocalUids);
-    }
-
-    public BinaryOutputStream(Sink sink_) {
-        this(sink_, TypeEncoding.LocalUids);
+    /**
+     * @param sink Sink to use
+     */
+    public BinaryOutputStream(Sink sink) {
+        this(sink, new SerializationInfo());
     }
 
     /**
-     * @param encoding Data type encoding that is used
+     * @param sink Sink to use
+     * @param serializationTarget Info on target that serialization is created for
      */
-    public BinaryOutputStream(TypeEncoding encoding) {
-        this.encoding = encoding;
-    }
-
-    public BinaryOutputStream(TypeEncoder encoder) {
-        customEncoder = encoder;
-        encoding = TypeEncoding.Custom;
+    public BinaryOutputStream(Sink sink, SerializationInfo serializationTarget) {
+        reset(sink, serializationTarget);
     }
 
     /**
-     * @param sink_ Sink to write to
-     * @param encoding Data type encoding that is used
+     * @param sink Sink to use
+     * @param sharedSerializationInfoFrom Serialization info (SerializationInfo and published registers) is taken from and shared with this output stream
      */
-    public BinaryOutputStream(Sink sink_, TypeEncoding encoding) {
-        this.encoding = encoding;
-        reset(sink_);
+    public BinaryOutputStream(Sink sink, BinaryOutputStream sharedSerializationInfoFrom) {
+        reset(sink, sharedSerializationInfoFrom);
     }
 
+
+    public BinaryOutputStream() {}
+
     /**
-     * @param sink_ Sink to write to
-     * @param encoder Custom type encoder
+     * @return Info on target that serialization is created for
      */
-    public BinaryOutputStream(Sink sink_, TypeEncoder encoder) {
-        customEncoder = encoder;
-        encoding = TypeEncoding.Custom;
-        reset(sink_);
+    public SerializationInfo getTargetInfo() {
+        return serializationTarget;
     }
 
     /**
@@ -149,17 +151,6 @@ public class BinaryOutputStream {
     }
 
     /**
-     * Use buffer with different sink (closes old one)
-     *
-     * @param sink New Sink to use
-     */
-    public void reset(Sink sink) {
-        close();
-        this.sink = sink;
-        reset();
-    }
-
-    /**
      * Resets/clears buffer for writing
      */
     public void reset() {
@@ -168,6 +159,68 @@ public class BinaryOutputStream {
         closed = false;
         bufferCopyFraction = (int)(buffer.capacity() * BUFFER_COPY_FRACTION);
         directWriteSupport = sink.directWriteSupport();
+    }
+
+    /**
+     * Use buffer with different sink (closes old one)
+     *
+     * @param sink New Sink to use
+     */
+    public void reset(Sink sink) {
+        reset(sink, new SerializationInfo());
+    }
+
+    /**
+     * Use buffer with different sink (closes old one)
+     *
+     * @param sink New Sink to use
+     * @param serializationTarget Info on target that serialization is created for
+     */
+    public void reset(Sink sink, SerializationInfo serializationTarget) {
+        close();
+        this.sink = sink;
+        setSerializationTarget(serializationTarget);
+        reset();
+    }
+
+    /**
+     * Sets shared serialization target of this stream without changing sink
+     *
+     * serializationTarget Info on target that serialization is created for
+     */
+    public void setSerializationTarget(SerializationInfo serializationTarget) {
+        this.serializationTarget = serializationTarget;
+        publishedRegisterStatus = serializationTarget.hasPublishedRegisters() ? new PublishedRegisterStatus() : null;
+        if (serializationTarget.hasPublishedRegisters()) {
+            for (int i = 0; i < SerializationInfo.MAX_PUBLISHED_REGISTERS; i++) {
+                if (serializationTarget.getRegisterEntryEncoding(i) == SerializationInfo.RegisterEntryEncoding.PUBLISH_REGISTER_ON_CHANGE) {
+                    publishedRegisterStatus.onChangeRegisters.add(PublishedRegisters.get(i).register);
+                }
+            }
+        }
+    }
+
+    /**
+     * Use buffer with different sink (closes old one)
+     *
+     * @param sink New Sink to use
+     * @param sharedSerializationInfoFrom Serialization info (SerializationInfo and published registers) is taken from and shared with this output stream
+     */
+    public void reset(Sink sink, BinaryOutputStream sharedSerializationInfoFrom) {
+        close();
+        this.sink = sink;
+        setSharedSerializationInfo(sharedSerializationInfoFrom);
+        reset();
+    }
+
+    /**
+     * Sets shared serialization info of this stream without changing sink
+     *
+     * @param sharedSerializationInfoFrom Serialization info (SerializationInfo and published registers) is taken from and shared with this output stream
+     */
+    public void setSharedSerializationInfo(BinaryOutputStream sharedSerializationInfoFrom) {
+        this.serializationTarget = sharedSerializationInfoFrom.serializationTarget;
+        this.publishedRegisterStatus = sharedSerializationInfoFrom.publishedRegisterStatus;
     }
 
     /**
@@ -376,33 +429,6 @@ public class BinaryOutputStream {
     }
 
     /**
-     * @param v 32 bit integer
-     */
-    public void writeInt(int v) {
-        ensureAdditionalCapacity(4);
-        buffer.buffer.putInt(buffer.position, v);
-        buffer.position += 4;
-    }
-
-    /**
-     * @param v 64 bit integer
-     */
-    public void writeLong(long v) {
-        ensureAdditionalCapacity(8);
-        buffer.buffer.putLong(buffer.position, v);
-        buffer.position += 8;
-    }
-
-    /**
-     * @param v 16 bit integer
-     */
-    public void writeShort(int v) {
-        ensureAdditionalCapacity(2);
-        buffer.buffer.putShort(buffer.position, (short)v);
-        buffer.position += 2;
-    }
-
-    /**
      * @param v 64 bit floating point
      */
     public void writeDouble(double v) {
@@ -411,14 +437,6 @@ public class BinaryOutputStream {
         buffer.position += 8;
     }
 
-    /**
-     * @param v 32 bit floating point
-     */
-    public void writeFloat(float v) {
-        ensureAdditionalCapacity(4);
-        buffer.buffer.putFloat(buffer.position, v);
-        buffer.position += 4;
-    }
 
     /**
      * @param e Enum constant
@@ -443,6 +461,65 @@ public class BinaryOutputStream {
             assert(constants.length < 0x7FFFFFFF);
             writeInt(value);
         }
+    }
+
+    /**
+     * @param v 32 bit floating point
+     */
+    public void writeFloat(float v) {
+        ensureAdditionalCapacity(4);
+        buffer.buffer.putFloat(buffer.position, v);
+        buffer.position += 4;
+    }
+
+    /**
+     * @param v 32 bit integer
+     */
+    public void writeInt(int v) {
+        ensureAdditionalCapacity(4);
+        buffer.buffer.putInt(buffer.position, v);
+        buffer.position += 4;
+    }
+
+    /**
+     * @param v sizeof byte integer
+     * @param sizeof Size of integer (1, 2, 4, or 8)
+     */
+    public void writeInt(long v, int sizeof) {
+        switch (sizeof) {
+        case 1:
+            writeByte((byte)v);
+            break;
+        case 2:
+            writeShort((short)v);
+            break;
+        case 4:
+            writeInt((int)v);
+            break;
+        case 8:
+            writeLong(v);
+            break;
+        default:
+            throw new RuntimeException("Invalid size");
+        }
+    }
+
+    /**
+     * @param v 64 bit integer
+     */
+    public void writeLong(long v) {
+        ensureAdditionalCapacity(8);
+        buffer.buffer.putLong(buffer.position, v);
+        buffer.position += 8;
+    }
+
+    /**
+     * @param v 16 bit integer
+     */
+    public void writeShort(int v) {
+        ensureAdditionalCapacity(2);
+        buffer.buffer.putShort(buffer.position, (short)v);
+        buffer.position += 2;
     }
 
     /**
@@ -535,21 +612,6 @@ public class BinaryOutputStream {
             inputStream.ensureAvailable(1);
             write(inputStream.curBuffer.buffer, inputStream.curBuffer.position, inputStream.curBuffer.remaining());
             inputStream.curBuffer.position = inputStream.curBuffer.end;
-        }
-    }
-
-    /**
-     * @param type Data type to write/reference (using encoding specified in constructor)
-     */
-    public void writeType(DataTypeBase type) {
-        type = type == null ? DataTypeBase.NULL_TYPE : type;
-
-        if (encoding == TypeEncoding.LocalUids) {
-            writeShort(type.getUid());
-        } else if (encoding == TypeEncoding.Names) {
-            writeString(type.getName());
-        } else {
-            customEncoder.writeType(this, type);
         }
     }
 
@@ -661,5 +723,78 @@ public class BinaryOutputStream {
      */
     public void writeDuration(long duration) {
         writeLong(duration * 1000000);
+    }
+
+    /**
+     * Writes any required updates to stream
+     *
+     * @param registerUid UID of register whose entry is to be serialized after call
+     * @param entryHandle Handle of entry to be serialized after call
+     * @param handleSize Size of register's handle (in bytes)
+     * @return Whether any register updates have been written to stream
+     */
+    public boolean writeRegisterUpdates(int registerUid, int entryHandle, int handleSize) {
+        int newCounter = 0;
+        if (publishedRegisterStatus.onChangeRegisters != null) {
+            for (Register<?> register : publishedRegisterStatus.onChangeRegisters) {
+                newCounter += register.size();
+            }
+        }
+        if (newCounter < publishedRegisterStatus.publishedOnChangedEntries || entryHandle > publishedRegisterStatus.elementsWritten[registerUid]) {
+            publishedRegisterStatus.publishedOnChangedEntries = newCounter;
+
+            boolean escapeSignalWritten = false;
+
+            // Update on_change registers
+            for (int i = 0; i < SerializationInfo.MAX_PUBLISHED_REGISTERS; i++) {
+                PublishedRegisters.PerRegisterInfo localRegister = PublishedRegisters.get(i);
+                boolean may_require_update = i == registerUid || serializationTarget.getRegisterEntryEncoding(i) == SerializationInfo.RegisterEntryEncoding.PUBLISH_REGISTER_ON_CHANGE;
+                if (may_require_update && localRegister != null) {
+
+                    int currentSize = localRegister.register.size();
+                    if (currentSize > publishedRegisterStatus.elementsWritten[i]) {
+                        if (!escapeSignalWritten) {
+                            if (handleSize == 1) {
+                                writeByte(-2);
+                            } else if (handleSize == 2) {
+                                writeShort(-2);
+                            } else if (handleSize == 4) {
+                                writeInt(-2);
+                            }
+                            escapeSignalWritten = true;
+                        }
+
+                        if (getTargetInfo().getRevision() == 0) {
+                            if (publishedRegisterStatus.elementsWritten[i] == 0) {
+                                writeShort(40);
+                            }
+
+                            // compatibility with legacy parts
+                            PublishedRegisters.get(registerUid).serializeEntries(this, publishedRegisterStatus.elementsWritten[i], currentSize);
+                            writeShort(-1);
+                        } else {
+                            writeByte(i);
+                            writeInt(currentSize - publishedRegisterStatus.elementsWritten[i]);
+                            PublishedRegisters.get(registerUid).serializeEntries(this, publishedRegisterStatus.elementsWritten[i], currentSize);
+                        }
+                        publishedRegisterStatus.elementsWritten[i] = currentSize;
+                    }
+                }
+            }
+            if (escapeSignalWritten && getTargetInfo().getRevision() != 0) { // non-legacy parts require this terminator
+                writeByte(-1);
+            }
+            return escapeSignalWritten;
+        }
+        return false;
+    }
+
+    /**
+     * Writes remote register entry to stream (typically only its handle)
+     *
+     * @param entry Entry to write to stream
+     */
+    public void writeRemoteRegisterEntry(PublishedRegisters.RemoteEntryBase<?> entry) {
+        writeInt(entry.getHandle(), entry.getHandleSize());
     }
 }

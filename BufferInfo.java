@@ -23,6 +23,8 @@ package org.rrlib.serialization;
 
 
 /**
+ * @author Max Reichardt
+ *
  * Buffer information
  * (can be passed to and modified by Manager (by reference))
  */

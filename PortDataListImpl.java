@@ -52,19 +52,8 @@ public class PortDataListImpl<T extends BinarySerializable> implements PortDataL
     @Override
     public void serialize(BinaryOutputStream os) {
         os.writeInt(wrapped.size());
-        boolean constType = true;
+        os.writeBoolean(true); // const type?  (possibly unnecessary; if we remove it, this will break binary compatibility to 13.10 though)
         for (int i = 0; i < wrapped.size(); i++) {
-            constType &= wrapped.get(i).getClass().equals(elementType.getJavaClass());
-        }
-        os.writeBoolean(constType);
-        for (int i = 0; i < wrapped.size(); i++) {
-            if (!constType) {
-                if (wrapped.get(i) == null) {
-                    os.writeType(DataTypeBase.NULL_TYPE);
-                    continue;
-                }
-                os.writeType(DataTypeBase.findType(wrapped.get(i).getClass(), elementType));
-            }
             wrapped.get(i).serialize(os);
         }
     }
@@ -74,15 +63,12 @@ public class PortDataListImpl<T extends BinarySerializable> implements PortDataL
     public void deserialize(BinaryInputStream is) throws Exception {
         int size = is.readInt();
         boolean constType = is.readBoolean();
+        if (!constType) {
+            throw new RuntimeException("Non-const types are not supported");
+        }
+
         for (int i = 0; i < size; i++) {
             DataTypeBase type = elementType;
-            if (!constType) {
-                type = is.readType();
-                if (type == null || type == DataTypeBase.NULL_TYPE) {
-                    wrapped.set(i, null);
-                    continue;
-                }
-            }
             if (i < wrapped.size() && wrapped.get(i).getClass().equals(type.getJavaClass())) {
                 ((T)wrapped.get(i)).deserialize(is);
             } else {

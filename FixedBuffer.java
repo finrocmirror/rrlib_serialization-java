@@ -62,10 +62,10 @@ public class FixedBuffer {
 
     /**
      * @param capacity Capacity of buffer to allocate
-     * @param allocatDirect Allocate direct byte buffer? (in heap outside of JVM - mainly relevant for JNI code)
+     * @param allocateDirect Allocate direct byte buffer? (in heap outside of JVM - mainly relevant for JNI code)
      */
-    public FixedBuffer(int capacity, boolean allocatDirect) {
-        this(allocatDirect ? ByteBuffer.allocateDirect(capacity) : ByteBuffer.allocate(capacity));
+    public FixedBuffer(int capacity, boolean allocateDirect) {
+        this(allocateDirect ? ByteBuffer.allocateDirect(capacity) : ByteBuffer.allocate(capacity));
     }
 
     /**

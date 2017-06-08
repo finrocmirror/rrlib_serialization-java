@@ -21,12 +21,16 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization.rtti;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.rrlib.logging.Log;
 import org.rrlib.logging.LogLevel;
+import org.rrlib.serialization.BinaryInputStream;
+import org.rrlib.serialization.BinaryOutputStream;
+import org.rrlib.serialization.PublishedRegisters;
+import org.rrlib.serialization.Register;
+import org.rrlib.serialization.PublishedRegisters.RemoteEntryBase;
 
 
 /**
@@ -46,33 +50,37 @@ import org.rrlib.logging.LogLevel;
  */
 public class DataTypeBase {
 
-    /** type of data type */
-    public enum Classification {
-        PLAIN, // Plain type
-        LIST, // List of objects of same type
-        PTR_LIST, // List of objects with possibly objects of different types
-        NULL, // Null type
-        OTHER, // Other data type
-        UNKNOWN // Unknown data type in current process
-    }
+    /** Relevant type traits across runtime environments (equals C++ traits) */
+    public static final int
+    IS_BINARY_SERIALIZABLE = 1 << 8,
+    IS_STRING_SERIALIZABLE = 1 << 9,
+    IS_XML_SERIALIZABLE = 1 << 10,
+    IS_ENUM = 1 << 11,
+    IS_DATA_TYPE = 1 << 12,
+    IS_RPC_TYPE = 1 << 13,
+    // the traits below are only set in C++
+    HAS_LIST_TYPE = 1 << 14,
+    HAS_UNDERLYING_TYPE = 1 << 15,
+    IS_CAST_TO_UNDERLYING_TYPE_IMPLICIT = 1 << 16,
+    IS_REINTERPRET_CAST_FROM_UNDERLYING_TYPE_VALID = 1 << 17,
+    IS_CAST_FROM_UNDERLYING_TYPE_IMPLICIT = 1 << 18,
+    IS_UNDERLYING_TYPE_BINARY_SERIALIZATION_DIFFERENT = 1 << 19,
+    SUPPORTS_BITWISE_COPY = 1 << 20,
+    IS_INTEGRAL = 1 << 21,
+    IS_LIST_TYPE = 1 << 22,
+    HAS_TRIVIAL_DESTRUCTOR = 1 << 23;
 
-    /** Relevant type traits across runtime environments */
-    public static final byte IS_BINARY_SERIALIZABLE = 1 << 0;
-    public static final byte IS_STRING_SERIALIZABLE = 1 << 1;
-    public static final byte IS_XML_SERIALIZABLE = 1 << 2;
-    public static final byte IS_ENUM = 1 << 3;
+    /** Register with all registered data types */
+    private static Register<DataTypeBase> types = new Register<DataTypeBase>(32, 128, 2);
 
     /** Null type */
-    public static DataTypeBase NULL_TYPE = new DataTypeBase(true);
+    public static DataTypeBase NULL_TYPE = new DataTypeBase("NULL");
 
     /** Maximum number of annotations */
     private static final int MAX_ANNOTATIONS = 10;
 
     /** we need to avoid reallocation in order to make ArrayList thread safe. Therefore it is created with this capacity. */
     private final static int MAX_TYPES = 2000;
-
-    /** Type of data type */
-    protected Classification type;
 
     /** Name of data type */
     private final String name;
@@ -101,9 +109,6 @@ public class DataTypeBase {
     /** Array with enum values - if this is a remote enum type with non-standard values */
     protected long[] enumValues;
 
-    /** List with all registered data types (preallocated to avoid reallocations => concurrent use is possible) */
-    private static ArrayList<DataTypeBase> types = new ArrayList<DataTypeBase>(MAX_TYPES);
-
     /** Lookup for data type annotation index */
     private static final HashMap < Class<?>, Integer > annotationIndexLookup = new HashMap < Class<?>, Integer > ();
 
@@ -111,7 +116,7 @@ public class DataTypeBase {
     private static final AtomicInteger lastAnnotationIndex = new AtomicInteger(0);
 
     /** Type traits of this type (bit vector - see constants above) */
-    protected byte typeTraits;
+    protected int typeTraits;
 
     ///** Is this a remote type? */
     //protected boolean remoteType = false;
@@ -120,8 +125,8 @@ public class DataTypeBase {
         synchronized (DataTypeBase.class) {
             uid = (short)types.size();
             this.name = name;
-            for (DataTypeBase type : types) {
-                if (type.getName().equals(name)) {
+            for (int i = 0, n = types.size(); i < n; i++) {
+                if (types.get(i).getName().equals(name)) {
                     Log.log(LogLevel.WARNING, "Two types with the same name were registered: " + name);
                 }
             }
@@ -133,12 +138,6 @@ public class DataTypeBase {
             types.add(this);
             Log.log(LogLevel.DEBUG_VERBOSE_1, this, "Adding data type " + getName());
         }
-    }
-
-    private DataTypeBase(boolean nulltype) {
-        this.name = "NULL";
-        this.uid = -1;
-        this.type = Classification.NULL;
     }
 
     /**
@@ -160,13 +159,6 @@ public class DataTypeBase {
      */
     public short getUid() {
         return uid;
-    }
-
-    /**
-     * @return return "Type" of data type (see enum)
-     */
-    public Classification getType() {
-        return type;
     }
 
     /**
@@ -200,7 +192,7 @@ public class DataTypeBase {
     /**
      * @return Bit vector of type traits
      */
-    public byte getTypeTraits() {
+    public int getTypeTraits() {
         return typeTraits;
     }
 
@@ -321,7 +313,6 @@ public class DataTypeBase {
 
     /**
      * Can object of this data type be converted to specified type?
-     * (In C++ currently only returns true, when types are equal)
      *
      * @param dataType Other type
      * @return Answer
@@ -331,14 +322,8 @@ public class DataTypeBase {
         if (dataType == this) {
             return true;
         }
-        if (type == Classification.NULL || dataType.type == Classification.NULL) {
-            return false;
-        }
-        if (getType() == Classification.UNKNOWN || dataType.getType() == Classification.UNKNOWN) {
-            return false;
-        }
-        if (getType() == Classification.LIST && dataType.getType() == Classification.LIST) {
-            return getElementType().isConvertibleTo(dataType.getElementType());
+        if ((typeTraits & dataType.typeTraits & IS_LIST_TYPE) != 0) {
+            return getElementType() != null && dataType.getElementType() != null && getElementType().isConvertibleTo(dataType.getElementType());
         }
         if ((javaClass != null) && (dataType.javaClass != null)) {
             return dataType.javaClass.isAssignableFrom(javaClass);
@@ -391,10 +376,43 @@ public class DataTypeBase {
     public Object[] getEnumConstants() {
         return enumConstants;
     }
+
     /**
      * @return Array with enum values - if this is a remote enum type with non-standard values
      */
     public long[] getNonStandardEnumValues() {
         return enumValues;
+    }
+
+    /**
+     * @param stream Stream to serialize this type to
+     */
+    public void serialize(BinaryOutputStream stream) {
+        if (types.writeEntry(stream, getUid())) {
+            stream.writeString(getName());
+        }
+    }
+
+    /**
+     * @param stream Stream to deserialize (local) type from
+     * @return Deserialized type
+     */
+    public static DataTypeBase deserialize(BinaryInputStream stream) throws Exception {
+        DataTypeBase result = types.readEntry(stream);
+        if (result == null) {
+            return findType(stream.readString());
+        }
+        return result;
+    }
+
+    /**
+     * Registers type register for use in auto-publishing mechanism.
+     *
+     * @param uid Uid to assign to register (must be <= MAX_PUBLISHED_REGISTERS)
+     * @param remoteEntryClass Type to deserialize in remote runtime environment. It needs to be derived from PublishedRegisters.RemoteEntryBase and be default-constructible.
+     * @throw Throws exception on already occupied uid
+     */
+    public static void registerForPublishing(int uid, Class<? extends RemoteEntryBase<?>> remoteEntryClass) throws Exception {
+        PublishedRegisters.register(types, uid, remoteEntryClass);
     }
 }

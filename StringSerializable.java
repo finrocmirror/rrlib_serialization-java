@@ -21,6 +21,9 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization;
 
+import org.rrlib.serialization.rtti.DataType;
+import org.rrlib.serialization.rtti.DataTypeBase;
+
 
 /**
  * @author Max Reichardt
@@ -42,4 +45,29 @@ public interface StringSerializable {
      * @param node String stream to deserialize from
      */
     public void deserialize(StringInputStream stream) throws Exception;
+
+
+    /** Data type of this class */
+    public final static DataTypeBase TYPE = new DataType<StringSerializable>(StringSerializable.class);
+
+    /**
+     * Empty String serializable
+     */
+    public static class Empty extends BinarySerializable.Empty implements StringSerializable {
+
+        public final static DataType<StringSerializable.Empty> TYPE = new DataType<>(StringSerializable.Empty.class, "EmptyStringSerializable");
+
+        @Override
+        public void serialize(StringOutputStream stream) {
+        }
+
+        @Override
+        public void deserialize(StringInputStream stream) throws Exception {
+        }
+
+        @Override
+        public String toString() {
+            return "";
+        }
+    }
 }

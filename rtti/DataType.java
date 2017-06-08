@@ -47,10 +47,11 @@ public class DataType<T> extends DataTypeBase {
     @SuppressWarnings("rawtypes")
     public DataType(Class<?> javaClass, String name, boolean createListTypes) {
         super(name != null ? name : javaClass.getSimpleName());
-        type = Classification.PLAIN;
         this.javaClass = javaClass;
-        typeTraits = (byte)((Serialization.isBinarySerializable(javaClass) ? IS_BINARY_SERIALIZABLE : 0) |
-                            (Serialization.isStringSerializable(javaClass) ? IS_STRING_SERIALIZABLE : 0) | (Serialization.isXmlSerializable(javaClass) ? IS_XML_SERIALIZABLE : 0));
+        typeTraits = IS_DATA_TYPE |
+                     (Serialization.isBinarySerializable(javaClass) ? IS_BINARY_SERIALIZABLE : 0) |
+                     (Serialization.isStringSerializable(javaClass) ? IS_STRING_SERIALIZABLE : 0) |
+                     (Serialization.isXmlSerializable(javaClass) ? IS_XML_SERIALIZABLE : 0);
         if (javaClass.isEnum()) {
             ArrayList<String> constants = new ArrayList<String>();
             for (Object o : javaClass.getEnumConstants()) {
@@ -61,33 +62,31 @@ public class DataType<T> extends DataTypeBase {
         }
 
         if (createListTypes && listType == null) {
-            listType = new DataType(this, Classification.LIST);
-            //sharedPtrListType = new DataType(this, Classification.PTR_LIST);
+            listType = new DataType(this);
         }
     }
 
     @SuppressWarnings("rawtypes")
     public DataType(Class<?> javaClass, Class<?> dedicatedListType, String name) {
         this(javaClass, name, false);
-        listType = new DataType(this, Classification.LIST);
+        listType = new DataType(this);
         listType.javaClass = dedicatedListType;
     }
 
     /**
      * Constructor for list types
      */
-    private DataType(DataTypeBase e, Classification type) {
-        super(type == Classification.LIST ? ("List<" + e.getName() + ">") : ("List<" + e.getName() + "*>"));
-        this.type = type;
+    private DataType(DataTypeBase e) {
+        super("List<" + e.getName() + ">");
         this.elementType = e;
-        this.typeTraits = (byte)(e.typeTraits & (IS_BINARY_SERIALIZABLE | IS_STRING_SERIALIZABLE | IS_XML_SERIALIZABLE));
+        this.typeTraits = (e.typeTraits & (IS_BINARY_SERIALIZABLE | IS_STRING_SERIALIZABLE | IS_XML_SERIALIZABLE) | IS_DATA_TYPE | IS_LIST_TYPE);
     }
 
     @SuppressWarnings({ "rawtypes" })
     @Override
     public Object createInstance() {
         Object result = null;
-        if (javaClass == null && (getType() == Classification.LIST || getType() == Classification.PTR_LIST)) {
+        if (javaClass == null && (typeTraits & IS_LIST_TYPE) != 0) {
             return new PortDataListImpl(getElementType());
         }
 

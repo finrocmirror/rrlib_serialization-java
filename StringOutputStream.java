@@ -21,6 +21,8 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization;
 
+import org.rrlib.serialization.rtti.GenericObject;
+
 
 /**
  * @author Max Reichardt
@@ -129,6 +131,12 @@ public class StringOutputStream {
             ((StringSerializable)object).serialize(this);
         } else if (type.isPrimitive() || Number.class.isAssignableFrom(type) || Boolean.class.equals(type)) {
             append(object.toString());
+        } else if (type.equals(GenericObject.class)) {
+            try {
+                ((GenericObject)object).serialize(this);
+            } catch (Exception e) {
+                throw new RuntimeException("Generic object has unsupported type");
+            }
         } else {
             assert(object != null && (object.getClass() == type));
             if (type.isEnum()) {

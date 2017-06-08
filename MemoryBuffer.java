@@ -38,7 +38,7 @@ import org.rrlib.serialization.rtti.GenericChangeable;
  *
  * Writing and reading concurrently is not supported - due to resize.
  */
-public class MemoryBuffer implements BinarySerializable, ConstSource, Sink, Copyable<MemoryBuffer>, GenericChangeable<MemoryBuffer> {
+public class MemoryBuffer implements BinarySerializable, Source, Sink, Copyable<MemoryBuffer>, GenericChangeable<MemoryBuffer> {
 
     /** Size of temporary array */
     public final static int TEMP_ARRAY_SIZE = 2048;
@@ -73,16 +73,16 @@ public class MemoryBuffer implements BinarySerializable, ConstSource, Sink, Copy
     }
 
     public MemoryBuffer(int size) {
-        this(size, DEFAULT_RESIZE_FACTOR, true);
+        this(size, DEFAULT_RESIZE_FACTOR, false);
     }
 
     /**
      * @param size Initial buffer size
      * @param resizeFactor When buffer needs to be reallocated, new size is multiplied with this factor to have some bytes in reserve
-     * @param allocatDirect Allocate direct byte buffer? (in heap outside of JVM - mainly relevant for JNI code)
+     * @param allocateDirect Allocate direct byte buffer? (in heap outside of JVM - mainly relevant for JNI code)
      */
-    public MemoryBuffer(int size, float resizeFactor, boolean allocatDirect) {
-        backend = new FixedBuffer(size, allocatDirect);
+    public MemoryBuffer(int size, float resizeFactor, boolean allocateDirect) {
+        backend = new FixedBuffer(size, allocateDirect);
         resizeReserveFactor = resizeFactor;
     }
 
