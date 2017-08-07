@@ -45,6 +45,11 @@ public class BufferInfo {
     /** Custom data that can be filled by source/sink that manages this buffer */
     public Object customData = null;
 
+    public BufferInfo() {}
+    public BufferInfo(FixedBuffer buffer) {
+        this.buffer = buffer;
+    }
+
     /**
      * @param other Other Buffer Info to copy values from
      */

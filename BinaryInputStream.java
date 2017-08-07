@@ -42,11 +42,8 @@ public class BinaryInputStream {
     /** Buffer that is managed by source */
     protected BufferInfo sourceBuffer = new BufferInfo();
 
-    /** Small buffer to enable reading data that crosses buffer boundaries */
-    protected BufferInfo boundaryBuffer = new BufferInfo();
-
-    /** Actual boundary buffer backend - symmetric layout: 7 bit old bytes - 7 bit new bytes */
-    protected FixedBuffer boundaryBufferBackend = new FixedBuffer(14);
+    /** Small buffer to enable reading data that crosses buffer boundaries (symmetric layout: 7 bit old bytes - 7 bit new bytes) */
+    protected BufferInfo boundaryBuffer = new BufferInfo(new FixedBuffer(14));
 
     /** Current buffer - either sourceBuffer or boundary buffer */
     protected BufferInfo curBuffer = null;
@@ -79,7 +76,9 @@ public class BinaryInputStream {
     PublishedRegisters.RemoteRegister[] remoteRegisters;
 
 
-    public BinaryInputStream() {}
+    public BinaryInputStream() {
+
+    }
 
     /**
      * @param source Source to use
