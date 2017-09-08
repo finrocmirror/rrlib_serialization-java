@@ -58,8 +58,8 @@ public class DataTypeBase {
     IS_ENUM = 1 << 11,
     IS_DATA_TYPE = 1 << 12,
     IS_RPC_TYPE = 1 << 13,
+    IS_ARRAY = 1 << 14,
     // the traits below are only set in C++
-    HAS_LIST_TYPE = 1 << 14,
     HAS_UNDERLYING_TYPE = 1 << 15,
     IS_CAST_TO_UNDERLYING_TYPE_IMPLICIT = 1 << 16,
     IS_REINTERPRET_CAST_FROM_UNDERLYING_TYPE_VALID = 1 << 17,
