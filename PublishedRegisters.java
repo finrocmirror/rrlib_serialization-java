@@ -66,6 +66,12 @@ public class PublishedRegisters {
             this.handle = handle;
         }
 
+        /**
+         * Initializes element. May be overridden.
+         */
+        protected void init() {
+        }
+
         /** Remote handle of entry */
         int handle;
     }
@@ -143,6 +149,7 @@ public class PublishedRegisters {
 
         void deserializeEntries(BinaryInputStream stream) throws Exception {
 
+            int oldSize = size();
             if (stream.getSourceInfo().getRevision() == 0) {
                 if (size() == 0) {
                     stream.readShort();
@@ -166,6 +173,10 @@ public class PublishedRegisters {
                     add(remoteEntry);
                 }
             }
+            for (int i = oldSize, n = size(); i < n; i++) {
+                this.get(i).init();
+            }
+
         }
 
         /** Class to use for remote entries */
