@@ -50,25 +50,46 @@ import org.rrlib.serialization.PublishedRegisters.RemoteEntryBase;
  */
 public class DataTypeBase {
 
+    /** Type classification */
+    public enum Classification {
+        RPC_TYPE,
+        ARRAY,
+        LIST,
+        PAIR,
+        TUPLE,
+        INTEGRAL,
+        OTHER_DATA_TYPE
+    }
+
     /** Relevant type traits across runtime environments (equals C++ traits) */
     public static final int
     IS_BINARY_SERIALIZABLE = 1 << 8,
     IS_STRING_SERIALIZABLE = 1 << 9,
     IS_XML_SERIALIZABLE = 1 << 10,
-    IS_ENUM = 1 << 11,
-    IS_DATA_TYPE = 1 << 12,
-    IS_RPC_TYPE = 1 << 13,
-    IS_ARRAY = 1 << 14,
-    // the traits below are only set in C++
-    HAS_UNDERLYING_TYPE = 1 << 15,
-    IS_CAST_TO_UNDERLYING_TYPE_IMPLICIT = 1 << 16,
-    IS_REINTERPRET_CAST_FROM_UNDERLYING_TYPE_VALID = 1 << 17,
-    IS_CAST_FROM_UNDERLYING_TYPE_IMPLICIT = 1 << 18,
-    IS_UNDERLYING_TYPE_BINARY_SERIALIZATION_DIFFERENT = 1 << 19,
-    SUPPORTS_BITWISE_COPY = 1 << 20,
-    IS_INTEGRAL = 1 << 21,
-    IS_LIST_TYPE = 1 << 22,
-    HAS_TRIVIAL_DESTRUCTOR = 1 << 23;
+    IS_ENUM = 1 << 11,  // not part of Classification enum for legacy compatibility
+
+    // Classification bits (enum)
+    CLASSIFICATION_BITS = (1 << 12) | (1 << 13) | (1 << 14) | (1 << 15),
+    CLASSIFICATION_ARRAY = 0 << 12,
+    CLASSIFICATION_LIST = 1 << 12,
+    CLASSIFICATION_PAIR = 2 << 12,
+    CLASSIFICATION_TUPLE = 3 << 12,
+    CLASSIFICATION_ENUM_BASED_FLAGS = 4 << 12,
+    CLASSIFICATION_AUTO_NAMED = CLASSIFICATION_ENUM_BASED_FLAGS,
+    CLASSIFICATION_INTEGRAL = 12 << 12,
+    CLASSIFICATION_OTHER_DATA_TYPE = 13 << 12,
+    CLASSIFICATION_NULL_TYPE = 14 << 12,
+    CLASSIFICATION_RPC_TYPE = 15 << 12,
+
+    // The traits below are only set in C++
+    HAS_UNDERLYING_TYPE = 1 << 16,
+    IS_CAST_TO_UNDERLYING_TYPE_IMPLICIT = 1 << 17,
+    IS_REINTERPRET_CAST_FROM_UNDERLYING_TYPE_VALID = 1 << 18,
+    IS_CAST_FROM_UNDERLYING_TYPE_IMPLICIT = 1 << 19,
+    IS_UNDERLYING_TYPE_BINARY_SERIALIZATION_DIFFERENT = 1 << 20,
+    SUPPORTS_BITWISE_COPY = 1 << 21,
+    HAS_TRIVIAL_DESTRUCTOR = 1 << 22;
+
 
     /** Register with all registered data types */
     private static Register<DataTypeBase> types = new Register<DataTypeBase>(32, 128, 2);
@@ -118,8 +139,9 @@ public class DataTypeBase {
     /** Type traits of this type (bit vector - see constants above) */
     protected int typeTraits;
 
-    ///** Is this a remote type? */
-    //protected boolean remoteType = false;
+    static {
+        NULL_TYPE.typeTraits |= CLASSIFICATION_NULL_TYPE;
+    }
 
     public DataTypeBase(String name) {
         synchronized (DataTypeBase.class) {
@@ -187,6 +209,13 @@ public class DataTypeBase {
      */
     public Class<?> getJavaClass() {
         return javaClass;
+    }
+
+    /**
+     * @return Type classification
+     */
+    public int getTypeClassification() {
+        return typeTraits & CLASSIFICATION_BITS;
     }
 
     /**
@@ -322,7 +351,7 @@ public class DataTypeBase {
         if (dataType == this) {
             return true;
         }
-        if ((typeTraits & dataType.typeTraits & IS_LIST_TYPE) != 0) {
+        if (getTypeClassification() == CLASSIFICATION_LIST) {
             return getElementType() != null && dataType.getElementType() != null && getElementType().isConvertibleTo(dataType.getElementType());
         }
         if ((javaClass != null) && (dataType.javaClass != null)) {

@@ -48,7 +48,7 @@ public class DataType<T> extends DataTypeBase {
     public DataType(Class<?> javaClass, String name, boolean createListTypes) {
         super(name != null ? name : javaClass.getSimpleName());
         this.javaClass = javaClass;
-        typeTraits = IS_DATA_TYPE |
+        typeTraits = CLASSIFICATION_OTHER_DATA_TYPE |
                      (Serialization.isBinarySerializable(javaClass) ? IS_BINARY_SERIALIZABLE : 0) |
                      (Serialization.isStringSerializable(javaClass) ? IS_STRING_SERIALIZABLE : 0) |
                      (Serialization.isXmlSerializable(javaClass) ? IS_XML_SERIALIZABLE : 0);
@@ -79,14 +79,14 @@ public class DataType<T> extends DataTypeBase {
     private DataType(DataTypeBase e) {
         super("List<" + e.getName() + ">");
         this.elementType = e;
-        this.typeTraits = (e.typeTraits & (IS_BINARY_SERIALIZABLE | IS_STRING_SERIALIZABLE | IS_XML_SERIALIZABLE) | IS_DATA_TYPE | IS_LIST_TYPE);
+        this.typeTraits = (e.typeTraits & (IS_BINARY_SERIALIZABLE | IS_STRING_SERIALIZABLE | IS_XML_SERIALIZABLE) | CLASSIFICATION_LIST);
     }
 
     @SuppressWarnings({ "rawtypes" })
     @Override
     public Object createInstance() {
         Object result = null;
-        if (javaClass == null && (typeTraits & IS_LIST_TYPE) != 0) {
+        if (javaClass == null && (getTypeClassification() == CLASSIFICATION_LIST)) {
             return new PortDataListImpl(getElementType());
         }
 
