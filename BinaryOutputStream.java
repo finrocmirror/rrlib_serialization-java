@@ -685,7 +685,7 @@ public class BinaryOutputStream {
             // TODO actually compress data (currently not needed)
             writeString("");
             writeObject(object, type);
-        } else {
+        } else if (encoding == Serialization.DataEncoding.BINARY_COMPRESSED) {
             assert(encoding == Serialization.DataEncoding.XML);
             XMLDocument d = new XMLDocument();
             try {
@@ -696,6 +696,8 @@ public class BinaryOutputStream {
                 e.printStackTrace();
                 writeString("error generating XML code.");
             }
+        } else {
+            assert(encoding == Serialization.DataEncoding.NONE);
         }
     }
 

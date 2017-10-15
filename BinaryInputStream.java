@@ -891,11 +891,16 @@ public class BinaryInputStream {
                 }
                 return deserializeTo;
             }
-        } else {
-            assert(encoding == Serialization.DataEncoding.XML);
+        } else if (encoding == Serialization.DataEncoding.XML) {
             XMLDocument d = new XMLDocument(new InputSource(new StringReader(readString())), false);
             XMLNode n = d.getRootNode();
             return Serialization.deserialize(n, deserializeTo, type);
+        } else {
+            assert(encoding == Serialization.DataEncoding.NONE);
+            if (deserializeTo == null) {
+                deserializeTo = type.newInstance();
+            }
+            return deserializeTo;
         }
     }
 
