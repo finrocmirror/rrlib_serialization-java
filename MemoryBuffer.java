@@ -21,6 +21,8 @@
 //----------------------------------------------------------------------
 package org.rrlib.serialization;
 
+import java.nio.ByteBuffer;
+
 import org.rrlib.logging.Log;
 import org.rrlib.logging.LogLevel;
 import org.rrlib.serialization.rtti.Copyable;
@@ -38,7 +40,7 @@ import org.rrlib.serialization.rtti.GenericChangeable;
  *
  * Writing and reading concurrently is not supported - due to resize.
  */
-public class MemoryBuffer implements BinarySerializable, ConstSource, Sink, Copyable<MemoryBuffer>, GenericChangeable<MemoryBuffer> {
+public class MemoryBuffer implements BinarySerializable, ConstSource, Sink, Copyable<MemoryBuffer>, GenericChangeable<MemoryBuffer>, ArrayBuffer {
 
     /** Size of temporary array */
     public final static int TEMP_ARRAY_SIZE = 2048;
@@ -336,4 +338,23 @@ public class MemoryBuffer implements BinarySerializable, ConstSource, Sink, Copy
         rv.readFully(backend, 0, size);
         curSize = size;
     }
+
+    @Override
+    public ByteBuffer getByteBuffer() {
+        return getBuffer().getBuffer();
+    }
+
+    @Override
+    public int[] getArrayDimensions() {
+        dimensions[0] = getSize();
+        return dimensions;
+    }
+
+    @Override
+    public Channel[] getChannels() {
+        return CHANNELS;
+    }
+
+    private final int[] dimensions = { 0 };
+    private static final Channel[] CHANNELS = { new Channel(AttributeType.UNSIGNED_BYTE, 0, 1, "Data") };
 }
